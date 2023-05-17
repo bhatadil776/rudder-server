@@ -5,7 +5,7 @@ metadata:
   labels:
     app: pulsar-exp
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: pulsar-exp
@@ -16,9 +16,14 @@ spec:
     spec:
       containers:
       - name: pulsar-exp
-        image: docker.io/fracasula/pulsar-exp:latest
+        image: fracasula/pulsar-exp:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
+        env:
+        - name: PULSAR_URL
+          value: "pulsar://pulsar-broker.pulsar.svc.cluster.local:6650"
+        - name: TOPIC_NAME
+          value: "gwpulsar-test-01"
       imagePullSecrets:
       - name: regcred

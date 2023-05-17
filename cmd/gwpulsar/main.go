@@ -14,16 +14,21 @@ import (
 )
 
 func main() {
-	err := run()
+	pulsarURL := os.Getenv("PULSAR_URL")
+	topicName := os.Getenv("TOPIC_NAME")
+
+	log.Printf("Starting with configuration: Pulsar URL: %s, Topic: %s\n", pulsarURL, topicName)
+
+	err := run(pulsarURL, topicName)
 	if err != nil {
 		log.Fatal("Server error:", err)
 	}
 }
 
-func run() error {
+func run(pulsarURL, topicName string) error {
 	// Create Pulsar client and producer
 	client, err := pulsar.NewClient(pulsar.ClientOptions{
-		URL: "pulsar://localhost:6650",
+		URL: pulsarURL,
 	})
 	if err != nil {
 		return err
@@ -31,7 +36,12 @@ func run() error {
 	defer client.Close()
 
 	producer, err := client.CreateProducer(pulsar.ProducerOptions{
-		Topic: "test-topic",
+		Topic:                   topicName,
+		MaxPendingMessages:      100,
+		BatchingMaxPublishDelay: time.Second,
+		BatchingMaxMessages:     100,
+		BatchingMaxSize:         5242880, // 5 MB
+		BatcherBuilderType:      pulsar.KeyBasedBatchBuilder,
 	})
 	if err != nil {
 		return err
