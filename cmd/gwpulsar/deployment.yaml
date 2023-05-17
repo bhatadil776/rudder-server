@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulsar-exp-deployment
+  labels:
+    app: pulsar-exp
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pulsar-exp
+  template:
+    metadata:
+      labels:
+        app: pulsar-exp
+    spec:
+      containers:
+      - name: pulsar-exp
+        image: docker.io/fracasula/pulsar-exp:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+      imagePullSecrets:
+      - name: regcred
