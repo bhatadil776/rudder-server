@@ -3,14 +3,9 @@ package downloader_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/rudderlabs/rudder-server/warehouse/internal/model"
-
-	"github.com/rudderlabs/rudder-server/warehouse/internal/service/loadfiles/downloader"
 
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
@@ -18,8 +13,12 @@ import (
 	"github.com/rudderlabs/rudder-server/services/filemanager"
 	"github.com/rudderlabs/rudder-server/testhelper/destination"
 	"github.com/rudderlabs/rudder-server/utils/misc"
-	warehouseutils "github.com/rudderlabs/rudder-server/warehouse/utils"
+	"github.com/rudderlabs/rudder-server/warehouse/internal/service/loadfiles/downloader"
 	"github.com/stretchr/testify/require"
+
+	"github.com/rudderlabs/rudder-server/warehouse/internal/model"
+
+	warehouseutils "github.com/rudderlabs/rudder-server/warehouse/utils"
 )
 
 type mockUploader struct {
@@ -57,8 +56,7 @@ func TestDownloader(t *testing.T) {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
-	var (
-		minioResource *destination.MINIOResource
+	const (
 		destType      = "POSTGRES"
 		provider      = "MINIO"
 		workers       = 12
@@ -67,12 +65,15 @@ func TestDownloader(t *testing.T) {
 		table         = "test-table"
 	)
 
+	minioResource, err := destination.SetupMINIO(pool, t)
+	require.NoError(t, err)
+
 	ctxCancel, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	testCases := []struct {
 		name         string
-		conf         map[string]interface{}
+		conf         map[string]any
 		numLoadFiles int
 		wantError    error
 		loadFiles    []warehouseutils.LoadFile
@@ -85,7 +86,7 @@ func TestDownloader(t *testing.T) {
 		{
 			name:         "invalid bucket provider",
 			numLoadFiles: 1,
-			conf: map[string]interface{}{
+			conf: map[string]any{
 				"bucketProvider": "INVALID",
 			},
 			wantError: errors.New("creating filemanager for destination: service provider not supported: INVALID"),
@@ -108,15 +109,11 @@ func TestDownloader(t *testing.T) {
 		},
 	}
 
-	for i, tc := range testCases {
-		i := i
+	for _, tc := range testCases {
 		tc := tc
 
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			minioResource, err = destination.SetupMINIO(pool, t)
-			require.NoError(t, err)
 
 			conf := map[string]any{
 				"bucketName":       minioResource.BucketName,
@@ -144,22 +141,19 @@ func TestDownloader(t *testing.T) {
 
 			f, err := os.Open("testdata/sample.csv.gz")
 			require.NoError(t, err)
-
 			defer func() { _ = f.Close() }()
 
 			var (
 				loadFiles []warehouseutils.LoadFile
-				ctx       context.Context
+				ctx       = context.Background()
 			)
 
 			if tc.ctx != nil {
 				ctx = tc.ctx
-			} else {
-				ctx = context.Background()
 			}
 
 			for j := 0; j < tc.numLoadFiles; j++ {
-				uploadOutput, err := fm.Upload(context.Background(), f, fmt.Sprintf("%d", i), uuid.New().String())
+				uploadOutput, err := fm.Upload(context.Background(), f, uuid.New().String())
 				require.NoError(t, err)
 
 				loadFiles = append(loadFiles, warehouseutils.LoadFile{
@@ -186,8 +180,7 @@ func TestDownloader(t *testing.T) {
 			)
 
 			fileNames, err := lfd.Download(ctx, table)
-
-			misc.RemoveFilePaths(fileNames...)
+			defer misc.RemoveFilePaths(fileNames...)
 
 			if tc.wantError != nil {
 				require.ErrorContains(t, err, tc.wantError.Error())
