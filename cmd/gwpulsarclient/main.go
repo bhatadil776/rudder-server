@@ -44,6 +44,8 @@ func main() {
 		log.Fatalf("Could not send messages: %v", err)
 	}
 
+	log.Println("Done publishing!")
+
 	// Subscribe and verify messages for all users
 	err = verifyMessages(ctx, pulsarURL, topicName, numUsers, messageCount)
 	if err != nil {
@@ -54,6 +56,8 @@ func main() {
 func sendMessages(ctx context.Context, c *http.Client, endpoint string, userID, messageCount int) error {
 	for i := 1; i <= messageCount; i++ {
 		message := createMessagePayload(userID, i)
+
+		log.Printf("Sending message: %s", message)
 
 		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(message))
 		if err != nil {
@@ -105,6 +109,8 @@ func verifyMessages(ctx context.Context, pulsarURL, topicName string, numUsers, 
 		if err != nil {
 			return fmt.Errorf("consumer receive error: %v", err)
 		}
+
+		log.Printf("Got message %q: %s", msg.Key(), msg.Payload())
 
 		consumedMessages[msg.Key()] = append(consumedMessages[msg.Key()], string(msg.Payload()))
 

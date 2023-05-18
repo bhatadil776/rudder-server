@@ -1,3 +1,4 @@
+GWPULSAR_NAMESPACE := fcasula
 REGISTRY_USERNAME := fracasula
 IMAGE_NAME := pulsar-exp
 DOCKER_REGISTRY := docker.io
@@ -28,10 +29,12 @@ run:
 
 .PHONY: deploy
 deploy:
+	kubens $(GWPULSAR_NAMESPACE) ;\
 	kubectl apply -f deployment.yaml
 
 .PHONY: undeploy
 undeploy:
+	kubens $(GWPULSAR_NAMESPACE) ;\
 	kubectl delete -f deployment.yaml
 
 .PHONY: create-topic
@@ -47,4 +50,16 @@ list-topics:
 .PHONY: delete-topic
 delete-topic:
 	kubens pulsar ;\
-    kubectl exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin topics delete-partitioned-topic persistent://public/default/$(TOPIC_NAME)
+    kubectl exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin topics delete-partitioned-topic persistent://public/default/$(TOPIC_NAME) -f
+
+.PHONY: pulsar-proxy
+pulsar-proxy:
+	kubectl -n pulsar port-forward pulsar-proxy-0 6650
+
+.PHONY: gwpulsar-pf
+gwpulsar-pf:
+	kubectl -n fcasula port-forward $$(kubectl -n fcasula get pods -l app=pulsar-exp -o jsonpath='{.items[*].metadata.name}') 8080
+
+.PHONY: gwpulsar-logs
+gwpulsar-logs:
+	kubectl logs -l app=pulsar-exp -f
