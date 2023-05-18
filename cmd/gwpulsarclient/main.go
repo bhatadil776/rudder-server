@@ -19,6 +19,9 @@ func main() {
 
 	pulsarURL := os.Getenv("PULSAR_URL")
 	topicName := os.Getenv("TOPIC_NAME")
+	if pulsarURL == "" || topicName == "" {
+		log.Fatal("Required environment variables are not set: PULSAR_URL or TOPIC_NAME")
+	}
 
 	log.Printf("Starting with configuration: Pulsar URL: %s, Topic: %s\n", pulsarURL, topicName)
 
@@ -64,8 +67,13 @@ func sendMessages(ctx context.Context, c *http.Client, endpoint string, userID, 
 		if err != nil {
 			return fmt.Errorf("could not do request: %v", err)
 		}
-
-		_ = resp.Body.Close()
+		err = resp.Body.Close()
+		if err != nil {
+			return fmt.Errorf("could not close response body: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("received non-OK status code: %v", resp.StatusCode)
+		}
 	}
 
 	log.Printf("User %02d: Sent %d messages", userID, messageCount)

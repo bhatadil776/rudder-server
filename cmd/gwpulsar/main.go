@@ -16,6 +16,9 @@ import (
 func main() {
 	pulsarURL := os.Getenv("PULSAR_URL")
 	topicName := os.Getenv("TOPIC_NAME")
+	if pulsarURL == "" || topicName == "" {
+		log.Fatal("Required environment variables are not set: PULSAR_URL or TOPIC_NAME")
+	}
 
 	log.Printf("Starting with configuration: Pulsar URL: %s, Topic: %s\n", pulsarURL, topicName)
 
