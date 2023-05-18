@@ -50,7 +50,7 @@ func main() {
 
 func sendMessages(ctx context.Context, c *http.Client, endpoint string, userID, messageCount int) error {
 	for i := 1; i <= messageCount; i++ {
-		message := fmt.Sprintf("user-%02d: message-%04d", userID, i)
+		message := createMessagePayload(userID, i)
 
 		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(message))
 		if err != nil {
@@ -111,6 +111,7 @@ func verifyMessages(ctx context.Context, pulsarURL, topicName string, numUsers, 
 		for _, messages := range consumedMessages {
 			if len(messages) != messageCount {
 				allDone = false
+				break
 			}
 		}
 		if allDone {
@@ -127,7 +128,7 @@ func verifyMessages(ctx context.Context, pulsarURL, topicName string, numUsers, 
 		}
 
 		for i := 1; i <= messageCount; i++ {
-			expectedMessage := fmt.Sprintf("user-%02d: message-%04d", userID, i)
+			expectedMessage := createMessagePayload(userID, i)
 			receivedMessage := messages[i-1]
 
 			if expectedMessage != receivedMessage {
@@ -142,4 +143,8 @@ func verifyMessages(ctx context.Context, pulsarURL, topicName string, numUsers, 
 	log.Println("Message verification successful")
 
 	return nil
+}
+
+func createMessagePayload(userID, messageNumber int) string {
+	return fmt.Sprintf("user-%02d: message-%04d", userID, messageNumber)
 }
