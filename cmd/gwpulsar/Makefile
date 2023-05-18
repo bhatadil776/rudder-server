@@ -29,28 +29,28 @@ run:
 
 .PHONY: deploy
 deploy:
-	kubens $(GWPULSAR_NAMESPACE) ;\
-	kubectl apply -f deployment.yaml
+	kubectl -n $(GWPULSAR_NAMESPACE) apply -f deployment.yaml
 
 .PHONY: undeploy
 undeploy:
-	kubens $(GWPULSAR_NAMESPACE) ;\
-	kubectl delete -f deployment.yaml
+	kubectl -n $(GWPULSAR_NAMESPACE) delete -f deployment.yaml
 
 .PHONY: create-topic
 create-topic:
-	kubens pulsar ;\
-	kubectl exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin topics create-partitioned-topic persistent://public/default/$(TOPIC_NAME) --partitions 1
+	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+		topics create-partitioned-topic \
+		persistent://public/default/$(TOPIC_NAME) --partitions 1
 
 .PHONY: list-topics
 list-topics:
-	kubens pulsar ;\
-	kubectl exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin topics list public/default
+	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+		topics list public/default
 
 .PHONY: delete-topic
 delete-topic:
-	kubens pulsar ;\
-    kubectl exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin topics delete-partitioned-topic persistent://public/default/$(TOPIC_NAME) -f
+	kubectl -n $(GWPULSAR_NAMESPACE) delete -f deployment.yaml ;\
+	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+    	topics delete-partitioned-topic persistent://public/default/$(TOPIC_NAME) -f
 
 .PHONY: pulsar-proxy
 pulsar-proxy:
@@ -58,8 +58,10 @@ pulsar-proxy:
 
 .PHONY: gwpulsar-pf
 gwpulsar-pf:
-	kubectl -n fcasula port-forward $$(kubectl -n fcasula get pods -l app=pulsar-exp -o jsonpath='{.items[*].metadata.name}') 8080
+	kubectl -n $(GWPULSAR_NAMESPACE) port-forward \
+		$$(kubectl -n fcasula get pods -l app=pulsar-exp -o jsonpath='{.items[*].metadata.name}') \
+		8080
 
 .PHONY: gwpulsar-logs
 gwpulsar-logs:
-	kubectl logs -l app=pulsar-exp -f
+	kubectl -n $(GWPULSAR_NAMESPACE) logs -l app=pulsar-exp -f
