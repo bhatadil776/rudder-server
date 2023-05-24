@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -40,7 +39,7 @@ func main() {
 
 	var (
 		numUsers     = 100
-		messageCount = 1000
+		messageCount = 100
 		client       = &http.Client{}
 		srvEndpoint  = "http://localhost:8080/"
 	)
@@ -67,7 +66,7 @@ func main() {
 			log.Printf("Could not verify messages: %v", err)
 		}
 	case "PERFORMANCE":
-		messagePayload := strings.NewReader(rand.UniqueString(1024))
+		messagePayload := rand.UniqueString(1024)
 
 		var eg errgroup.Group
 		for i := 1; i <= numUsers; i++ {
@@ -87,10 +86,10 @@ func main() {
 
 func sendMessagesPerformance(
 	ctx context.Context, c *http.Client, endpoint string,
-	userID, messageCount int, rdr io.Reader,
+	userID, messageCount int, messagePayload string,
 ) error {
 	for i := 1; i <= messageCount; i++ {
-		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, rdr)
+		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(messagePayload))
 		if err != nil {
 			return fmt.Errorf("failed to create request: %v", err)
 		}

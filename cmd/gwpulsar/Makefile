@@ -5,6 +5,7 @@ DOCKER_REGISTRY := docker.io
 IMAGE_VERSION := $(shell date +%Y%m%d%H%M%S)
 IMAGE_NAME := $(DOCKER_REGISTRY)/$(REGISTRY_USERNAME)/$(IMAGE_NAME)
 TAGGED_IMAGE_NAME := $(IMAGE_NAME):$(IMAGE_VERSION)
+PARTITIONS := 1
 
 # PULSAR VARS
 TOPIC_NAME := gwpulsar-test
@@ -46,7 +47,7 @@ create-namespace:
 create-topic:
 	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
 		topics create-partitioned-topic \
-		persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) --partitions 1 && \
+		persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) --partitions $(PARTITIONS) && \
 	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
 		topics create-subscription \
 		--subscription test-client-subscription \
@@ -63,11 +64,14 @@ list-topics:
 delete-topic:
 	kubectl -n $(GWPULSAR_NAMESPACE) delete -f deployment.yaml ;\
 	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
-    	topics delete-partitioned-topic persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) -f ;\
-    kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
-    	topics delete persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME)-partition-0 -f ;\
-	kubectl exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
-		topics delete persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) -f
+    	topics delete-partitioned-topic persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) -f
+#	number=1 ; while [[ $$number -le $(PARTITIONS) ]] ; do \
+#        kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+#    		topics delete persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME)-partition-$$number -f ;\
+#        ((number = number + 1)) ;\
+#    done ;\
+#	kubectl exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+#		topics delete persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) -f
 
 .PHONY: topic-stats
 topic-stats:
