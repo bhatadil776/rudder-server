@@ -25,5 +25,9 @@ spec:
           value: "pulsar://pulsar-broker.pulsar.svc.cluster.local:6650"
         - name: TOPIC_NAME
           value: "persistent://public/fcasula/gwpulsar-test"
+        - name: BATCH_MAX_DELAY
+          value: "100ms"
+        - name: BATCH_MAX_MESSAGES
+          value: "100"
       imagePullSecrets:
       - name: regcred

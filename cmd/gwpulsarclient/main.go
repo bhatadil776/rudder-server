@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"golang.org/x/sync/errgroup"
@@ -29,9 +30,14 @@ func main() {
 		pulsarURL, topicName, verify,
 	)
 
+	start := time.Now()
+	defer func() {
+		log.Printf("Total time: %s", time.Since(start))
+	}()
+
 	var (
-		numUsers     = 5
-		messageCount = 100
+		numUsers     = 100
+		messageCount = 1000
 		client       = &http.Client{}
 		srvEndpoint  = "http://localhost:8080/"
 	)

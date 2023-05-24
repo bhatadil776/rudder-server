@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"time"
 
@@ -16,19 +17,36 @@ import (
 func main() {
 	pulsarURL := os.Getenv("PULSAR_URL")
 	topicName := os.Getenv("TOPIC_NAME")
+	batchMaxDelay := os.Getenv("BATCH_MAX_DELAY")
+	batchMaxMessages := os.Getenv("BATCH_MAX_MESSAGES")
 	if pulsarURL == "" || topicName == "" {
 		log.Fatal("Required environment variables are not set: PULSAR_URL or TOPIC_NAME")
 	}
+	batchMaxDelayDuration, err := time.ParseDuration(batchMaxDelay)
+	if err != nil {
+		log.Fatal("Invalid BATCH_MAX_DELAY value:", err)
+	}
+	batchMaxMessagesInt, err := strconv.Atoi(batchMaxMessages)
+	if err != nil {
+		log.Fatal("Invalid BATCH_MAX_MESSAGES value:", err)
+	}
 
-	log.Printf("Starting with configuration: Pulsar URL: %s, Topic: %s\n", pulsarURL, topicName)
+	log.Printf("Starting with configuration: Pulsar URL: %s, Topic: %s, BatchMaxDelay: %s, BatchMaxMessages: %d\n",
+		pulsarURL, topicName, batchMaxDelayDuration, batchMaxMessagesInt,
+	)
 
-	err := run(pulsarURL, topicName)
+	err = run(pulsarURL, topicName, batchMaxDelayDuration, batchMaxMessagesInt)
 	if err != nil {
 		log.Fatal("Server error:", err)
 	}
 }
 
-func run(pulsarURL, topicName string) error {
+func run(
+	pulsarURL,
+	topicName string,
+	batchMaxDelay time.Duration,
+	batchMaxMessages int,
+) error {
 	// Create Pulsar client and producer
 	client, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL: pulsarURL,
@@ -40,9 +58,9 @@ func run(pulsarURL, topicName string) error {
 
 	producer, err := client.CreateProducer(pulsar.ProducerOptions{
 		Topic:                   topicName,
-		MaxPendingMessages:      100,
-		BatchingMaxPublishDelay: time.Second,
-		BatchingMaxMessages:     100,
+		BatchingMaxPublishDelay: batchMaxDelay,
+		BatchingMaxMessages:     uint(batchMaxMessages),
+		MaxPendingMessages:      batchMaxMessages,
 		BatchingMaxSize:         5242880, // 5 MB
 		BatcherBuilderType:      pulsar.KeyBasedBatchBuilder,
 	})
