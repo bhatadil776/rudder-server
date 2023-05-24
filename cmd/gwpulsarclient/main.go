@@ -66,7 +66,7 @@ func main() {
 			log.Printf("Could not verify messages: %v", err)
 		}
 	case "PERFORMANCE":
-		messagePayload := rand.UniqueString(1024)
+		messagePayload := rand.UniqueString(128)
 
 		var eg errgroup.Group
 		for i := 1; i <= numUsers; i++ {
@@ -108,6 +108,7 @@ func sendMessagesPerformance(
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("received non-OK status code: %v", resp.StatusCode)
 		}
+		fmt.Printf(".")
 	}
 
 	log.Printf("User %02d: Sent %d messages", userID, messageCount)
