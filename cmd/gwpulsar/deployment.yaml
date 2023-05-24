@@ -26,8 +26,8 @@ spec:
         - name: TOPIC_NAME
           value: "persistent://public/fcasula/gwpulsar-test"
         - name: BATCH_MAX_DELAY
-          value: "100ms"
+          value: "10ms"
         - name: BATCH_MAX_MESSAGES
-          value: "100"
+          value: "1000"
       imagePullSecrets:
       - name: regcred

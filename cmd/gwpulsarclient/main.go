@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/rudderlabs/rudder-go-kit/testhelper/rand"
 )
 
 func main() {
@@ -20,14 +23,14 @@ func main() {
 
 	pulsarURL := os.Getenv("PULSAR_URL")
 	topicName := os.Getenv("TOPIC_NAME")
-	verify := os.Getenv("VERIFY")
+	mode := os.Getenv("MODE")
 	if pulsarURL == "" || topicName == "" {
 		log.Fatal("Required environment variables are not set: PULSAR_URL or TOPIC_NAME")
 	}
 
 	log.Printf(
-		"Starting with configuration: Pulsar URL: %s, Topic: %s, Verify: %q\n",
-		pulsarURL, topicName, verify,
+		"Starting with configuration: Pulsar URL: %s, Topic: %s, Mode: %q\n",
+		pulsarURL, topicName, mode,
 	)
 
 	start := time.Now()
@@ -42,7 +45,8 @@ func main() {
 		srvEndpoint  = "http://localhost:8080/"
 	)
 
-	if verify != "1" {
+	switch mode {
+	case "ORDER":
 		var eg errgroup.Group
 		for i := 1; i <= numUsers; i++ {
 			userID := i
@@ -56,15 +60,59 @@ func main() {
 		}
 
 		log.Println("Done publishing!")
-	}
-
-	if verify == "1" {
+	case "VERIFY":
 		// Subscribe and verify messages for all users
 		err := verifyMessages(ctx, pulsarURL, topicName, numUsers, messageCount)
 		if err != nil {
 			log.Printf("Could not verify messages: %v", err)
 		}
+	case "PERFORMANCE":
+		messagePayload := strings.NewReader(rand.UniqueString(1024))
+
+		var eg errgroup.Group
+		for i := 1; i <= numUsers; i++ {
+			userID := i
+			eg.Go(func() error {
+				return sendMessagesPerformance(ctx, client, srvEndpoint, userID, messageCount, messagePayload)
+			})
+		}
+		err := eg.Wait()
+		if err != nil {
+			log.Fatalf("Could not send messages: %v", err)
+		}
+
+		log.Println("Done publishing!")
 	}
+}
+
+func sendMessagesPerformance(
+	ctx context.Context, c *http.Client, endpoint string,
+	userID, messageCount int, rdr io.Reader,
+) error {
+	for i := 1; i <= messageCount; i++ {
+		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, rdr)
+		if err != nil {
+			return fmt.Errorf("failed to create request: %v", err)
+		}
+
+		req.Header.Set("X-User-ID", fmt.Sprintf("user-%02d", userID))
+		req.Header.Set("Content-Type", "text/plain")
+
+		resp, err := c.Do(req)
+		if err != nil {
+			return fmt.Errorf("could not do request: %v", err)
+		}
+		err = resp.Body.Close()
+		if err != nil {
+			return fmt.Errorf("could not close response body: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("received non-OK status code: %v", resp.StatusCode)
+		}
+	}
+
+	log.Printf("User %02d: Sent %d messages", userID, messageCount)
+	return nil
 }
 
 func sendMessages(ctx context.Context, c *http.Client, endpoint string, userID, messageCount int) error {
