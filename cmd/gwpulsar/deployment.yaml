@@ -24,6 +24,6 @@ spec:
         - name: PULSAR_URL
           value: "pulsar://pulsar-broker.pulsar.svc.cluster.local:6650"
         - name: TOPIC_NAME
-          value: "gwpulsar-test-01"
+          value: "persistent://public/fcasula/gwpulsar-test"
       imagePullSecrets:
       - name: regcred

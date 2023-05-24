@@ -7,7 +7,7 @@ IMAGE_NAME := $(DOCKER_REGISTRY)/$(REGISTRY_USERNAME)/$(IMAGE_NAME)
 TAGGED_IMAGE_NAME := $(IMAGE_NAME):$(IMAGE_VERSION)
 
 # PULSAR VARS
-TOPIC_NAME := gwpulsar-test-01
+TOPIC_NAME := gwpulsar-test
 
 .PHONY: build
 build:
@@ -35,22 +35,45 @@ deploy:
 undeploy:
 	kubectl -n $(GWPULSAR_NAMESPACE) delete -f deployment.yaml
 
+.PHONY: create-namespace
+create-namespace:
+	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+		namespaces create public/$(GWPULSAR_NAMESPACE) ;\
+	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+		namespaces set-retention public/$(GWPULSAR_NAMESPACE) --size 10G --time 2d
+
 .PHONY: create-topic
 create-topic:
 	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
 		topics create-partitioned-topic \
-		persistent://public/default/$(TOPIC_NAME) --partitions 1
+		persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) --partitions 1 && \
+	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+		topics create-subscription \
+		--subscription test-client-subscription \
+		persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME)
 
 .PHONY: list-topics
 list-topics:
 	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
-		topics list public/default
+		topics list-partitioned-topics public/$(GWPULSAR_NAMESPACE) ;\
+	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+		topics list public/$(GWPULSAR_NAMESPACE)
 
 .PHONY: delete-topic
 delete-topic:
 	kubectl -n $(GWPULSAR_NAMESPACE) delete -f deployment.yaml ;\
 	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
-    	topics delete-partitioned-topic persistent://public/default/$(TOPIC_NAME) -f
+    	topics delete-partitioned-topic persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) -f ;\
+    kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+    	topics delete persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME)-partition-0 -f ;\
+	kubectl exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+		topics delete persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) -f
+
+.PHONY: topic-stats
+topic-stats:
+	kubectl -n pulsar exec -it pulsar-broker-0 -- /pulsar/bin/pulsar-admin \
+		topics partitioned-stats persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) \
+		--per-partition
 
 .PHONY: pulsar-proxy
 pulsar-proxy:

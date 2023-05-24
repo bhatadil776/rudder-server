@@ -19,11 +19,15 @@ func main() {
 
 	pulsarURL := os.Getenv("PULSAR_URL")
 	topicName := os.Getenv("TOPIC_NAME")
+	verify := os.Getenv("VERIFY")
 	if pulsarURL == "" || topicName == "" {
 		log.Fatal("Required environment variables are not set: PULSAR_URL or TOPIC_NAME")
 	}
 
-	log.Printf("Starting with configuration: Pulsar URL: %s, Topic: %s\n", pulsarURL, topicName)
+	log.Printf(
+		"Starting with configuration: Pulsar URL: %s, Topic: %s, Verify: %q\n",
+		pulsarURL, topicName, verify,
+	)
 
 	var (
 		numUsers     = 5
@@ -32,24 +36,28 @@ func main() {
 		srvEndpoint  = "http://localhost:8080/"
 	)
 
-	var eg errgroup.Group
-	for i := 1; i <= numUsers; i++ {
-		userID := i
-		eg.Go(func() error {
-			return sendMessages(ctx, client, srvEndpoint, userID, messageCount)
-		})
-	}
-	err := eg.Wait()
-	if err != nil {
-		log.Fatalf("Could not send messages: %v", err)
+	if verify != "1" {
+		var eg errgroup.Group
+		for i := 1; i <= numUsers; i++ {
+			userID := i
+			eg.Go(func() error {
+				return sendMessages(ctx, client, srvEndpoint, userID, messageCount)
+			})
+		}
+		err := eg.Wait()
+		if err != nil {
+			log.Fatalf("Could not send messages: %v", err)
+		}
+
+		log.Println("Done publishing!")
 	}
 
-	log.Println("Done publishing!")
-
-	// Subscribe and verify messages for all users
-	err = verifyMessages(ctx, pulsarURL, topicName, numUsers, messageCount)
-	if err != nil {
-		log.Printf("Could not verify messages: %v", err)
+	if verify == "1" {
+		// Subscribe and verify messages for all users
+		err := verifyMessages(ctx, pulsarURL, topicName, numUsers, messageCount)
+		if err != nil {
+			log.Printf("Could not verify messages: %v", err)
+		}
 	}
 }
 
