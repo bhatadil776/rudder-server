@@ -29,5 +29,23 @@ spec:
           value: "10ms"
         - name: BATCH_MAX_MESSAGES
           value: "1000"
+        - name: MAX_CONNECTIONS_PER_BROKER
+          value: "10"
       imagePullSecrets:
       - name: regcred
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pulsar-exp-svc
+  labels:
+    app: pulsar-exp
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: pulsar-exp

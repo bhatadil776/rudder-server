@@ -19,6 +19,7 @@ func main() {
 	topicName := os.Getenv("TOPIC_NAME")
 	batchMaxDelay := os.Getenv("BATCH_MAX_DELAY")
 	batchMaxMessages := os.Getenv("BATCH_MAX_MESSAGES")
+	maxConnectionsPerBroker := os.Getenv("MAX_CONNECTIONS_PER_BROKER")
 	if pulsarURL == "" || topicName == "" {
 		log.Fatal("Required environment variables are not set: PULSAR_URL or TOPIC_NAME")
 	}
@@ -30,12 +31,16 @@ func main() {
 	if err != nil {
 		log.Fatal("Invalid BATCH_MAX_MESSAGES value:", err)
 	}
+	maxConnectionsPerBrokerInt, err := strconv.Atoi(maxConnectionsPerBroker)
+	if err != nil {
+		log.Fatal("Invalid MAX_CONNECTIONS_PER_BROKER value:", err)
+	}
 
 	log.Printf("Starting with configuration: Pulsar URL: %s, Topic: %s, BatchMaxDelay: %s, BatchMaxMessages: %d\n",
 		pulsarURL, topicName, batchMaxDelayDuration, batchMaxMessagesInt,
 	)
 
-	err = run(pulsarURL, topicName, batchMaxDelayDuration, batchMaxMessagesInt)
+	err = run(pulsarURL, topicName, batchMaxDelayDuration, batchMaxMessagesInt, maxConnectionsPerBrokerInt)
 	if err != nil {
 		log.Fatal("Server error:", err)
 	}
@@ -46,10 +51,12 @@ func run(
 	topicName string,
 	batchMaxDelay time.Duration,
 	batchMaxMessages int,
+	maxConnectionsPerBroker int,
 ) error {
 	// Create Pulsar client and producer
 	client, err := pulsar.NewClient(pulsar.ClientOptions{
-		URL: pulsarURL,
+		URL:                     pulsarURL,
+		MaxConnectionsPerBroker: maxConnectionsPerBroker,
 	})
 	if err != nil {
 		return err
@@ -69,6 +76,19 @@ func run(
 		// more even distribution of hash values and is more performant
 		// than JavaStringHash, especially for longer keys.
 		HashingScheme: pulsar.Murmur3_32Hash,
+		// Using custom message router to simplify testing the message throughput
+		MessageRouter: func(msg *pulsar.ProducerMessage, metadata pulsar.TopicMetadata) int {
+			userID := msg.Key
+			numPartitions := metadata.NumPartitions()
+			partition, err := strconv.Atoi(userID)
+			if err != nil {
+				return -1 // default to round-robin
+			}
+			if uint32(partition) >= numPartitions {
+				return -1 // default to round-robin
+			}
+			return partition
+		},
 	})
 	if err != nil {
 		return err

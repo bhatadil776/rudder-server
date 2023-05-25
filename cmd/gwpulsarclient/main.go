@@ -7,13 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/rudderlabs/rudder-go-kit/testhelper/rand"
 )
 
 func main() {
@@ -22,35 +21,39 @@ func main() {
 
 	pulsarURL := os.Getenv("PULSAR_URL")
 	topicName := os.Getenv("TOPIC_NAME")
+	srvEndpoint := os.Getenv("SERVER_ENDPOINT")
+	numUsers := os.Getenv("NUM_USERS")
+	numMessages := os.Getenv("NUM_MESSAGES")
 	mode := os.Getenv("MODE")
-	if pulsarURL == "" || topicName == "" {
-		log.Fatal("Required environment variables are not set: PULSAR_URL or TOPIC_NAME")
-	}
 
 	log.Printf(
-		"Starting with configuration: Pulsar URL: %s, Topic: %s, Mode: %q\n",
-		pulsarURL, topicName, mode,
+		"Starting with configuration: Pulsar URL: %s, Topic: %s, Mode: %q, Srv: %s, Users: %s, Msgs: %s\n",
+		pulsarURL, topicName, mode, srvEndpoint, numUsers, numMessages,
 	)
+
+	numUsersInt, err := strconv.Atoi(numUsers)
+	if err != nil {
+		log.Fatal("Invalid NUM_USERS value:", err)
+	}
+	numMessagesInt, err := strconv.Atoi(numMessages)
+	if err != nil {
+		log.Fatal("Invalid NUM_MESSAGES value:", err)
+	}
 
 	start := time.Now()
 	defer func() {
 		log.Printf("Total time: %s", time.Since(start))
 	}()
 
-	var (
-		numUsers     = 10
-		messageCount = 1000
-		client       = &http.Client{}
-		srvEndpoint  = "http://localhost:8080/"
-	)
+	client := &http.Client{}
 
 	switch mode {
 	case "ORDER":
 		var eg errgroup.Group
-		for i := 0; i < numUsers; i++ {
+		for i := 0; i < numUsersInt; i++ {
 			userID := i
 			eg.Go(func() error {
-				return sendMessages(ctx, client, srvEndpoint, userID, messageCount)
+				return sendMessages(ctx, client, srvEndpoint, userID, numMessagesInt)
 			})
 		}
 		err := eg.Wait()
@@ -60,66 +63,25 @@ func main() {
 
 		log.Println("Done publishing!")
 	case "VERIFY":
+		if pulsarURL == "" || topicName == "" {
+			log.Fatal("Required environment variables are not set: PULSAR_URL or TOPIC_NAME")
+		}
+
 		// Subscribe and verify messages for all users
-		err := verifyMessages(ctx, pulsarURL, topicName, numUsers, messageCount)
+		err := verifyMessages(ctx, pulsarURL, topicName, numUsersInt, numMessagesInt)
 		if err != nil {
 			log.Printf("Could not verify messages: %v", err)
 		}
-	case "PERFORMANCE":
-		messagePayload := rand.UniqueString(128)
-
-		var eg errgroup.Group
-		for i := 0; i < numUsers; i++ {
-			userID := i
-			eg.Go(func() error {
-				return sendMessagesPerformance(ctx, client, srvEndpoint, userID, messageCount, messagePayload)
-			})
-		}
-		err := eg.Wait()
-		if err != nil {
-			log.Fatalf("Could not send messages: %v", err)
-		}
-
-		log.Println("Done publishing!")
 	}
-}
-
-func sendMessagesPerformance(
-	ctx context.Context, c *http.Client, endpoint string,
-	userID, messageCount int, messagePayload string,
-) error {
-	for i := 1; i <= messageCount; i++ {
-		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(messagePayload))
-		if err != nil {
-			return fmt.Errorf("failed to create request: %v", err)
-		}
-
-		req.Header.Set("X-User-ID", fmt.Sprintf("%d", userID))
-		req.Header.Set("Content-Type", "text/plain")
-
-		resp, err := c.Do(req)
-		if err != nil {
-			return fmt.Errorf("could not do request: %v", err)
-		}
-		err = resp.Body.Close()
-		if err != nil {
-			return fmt.Errorf("could not close response body: %v", err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("received non-OK status code: %v", resp.StatusCode)
-		}
-		fmt.Printf(".")
-	}
-
-	log.Printf("User %02d: Sent %d messages", userID, messageCount)
-	return nil
 }
 
 func sendMessages(ctx context.Context, c *http.Client, endpoint string, userID, messageCount int) error {
+	var (
+		sent int
+		key  = strconv.Itoa(userID)
+	)
 	for i := 1; i <= messageCount; i++ {
-		message := createMessagePayload(userID, i)
-
-		log.Printf("Sending message: %s", message)
+		message := createMessagePayload(key, i)
 
 		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(message))
 		if err != nil {
@@ -139,6 +101,11 @@ func sendMessages(ctx context.Context, c *http.Client, endpoint string, userID, 
 		}
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("received non-OK status code: %v", resp.StatusCode)
+		}
+
+		sent++
+		if sent%100 == 0 {
+			log.Printf("User %02d: Sent %d messages", userID, sent)
 		}
 	}
 
@@ -172,7 +139,7 @@ func verifyMessages(ctx context.Context, pulsarURL, topicName string, numUsers, 
 			return fmt.Errorf("consumer receive error: %v", err)
 		}
 
-		log.Printf("Got message %q: %s", msg.Key(), msg.Payload())
+		log.Printf("Got message from user %q: %s", msg.Key(), msg.Payload())
 
 		consumedMessages[msg.Key()] = append(consumedMessages[msg.Key()], string(msg.Payload()))
 
@@ -196,15 +163,15 @@ func verifyMessages(ctx context.Context, pulsarURL, topicName string, numUsers, 
 	}
 
 	// Verify order of messages
-	for userID := 1; userID <= numUsers; userID++ {
-		userKey := fmt.Sprintf("user-%02d", userID)
+	for userID := 0; userID < numUsers; userID++ {
+		userKey := fmt.Sprintf("%d", userID)
 		messages := consumedMessages[userKey]
 		if len(messages) != messageCount {
 			return fmt.Errorf("incomplete messages received for user %s", userKey)
 		}
 
 		for i := 1; i <= messageCount; i++ {
-			expectedMessage := createMessagePayload(userID, i)
+			expectedMessage := createMessagePayload(strconv.Itoa(userID), i)
 			receivedMessage := messages[i-1]
 
 			if expectedMessage != receivedMessage {
@@ -221,6 +188,6 @@ func verifyMessages(ctx context.Context, pulsarURL, topicName string, numUsers, 
 	return nil
 }
 
-func createMessagePayload(userID, messageNumber int) string {
-	return fmt.Sprintf("user-%02d: message-%04d", userID, messageNumber)
+func createMessagePayload(userID string, messageNumber int) string {
+	return userID + strconv.Itoa(messageNumber)
 }

@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pulsar-sender-job
+  labels:
+    app: pulsar-sender
+spec:
+  template:
+    metadata:
+      labels:
+        app: pulsar-sender
+    spec:
+      containers:
+      - name: pulsar-sender
+        image: fracasula/pulsar-sender:latest
+        imagePullPolicy: Always
+        env:
+        - name: SERVER_ENDPOINT
+          value: "http://pulsar-exp-svc.fcasula.svc.cluster.local:8080"
+        - name: NUM_USERS
+          value: "10"
+        - name: NUM_MESSAGES
+          value: "1000"
+        - name: MODE
+          value: "ORDER"
+      imagePullSecrets:
+      - name: regcred
+      restartPolicy: Never
+  backoffLimit: 4
