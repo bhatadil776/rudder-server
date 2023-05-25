@@ -63,6 +63,12 @@ func run(
 		MaxPendingMessages:      batchMaxMessages,
 		BatchingMaxSize:         5242880, // 5 MB
 		BatcherBuilderType:      pulsar.KeyBasedBatchBuilder,
+		// Murmur3_32Hash: MurmurHash3 operates on 4 bytes at a time,
+		// and involves a series of multiply, add, and bitwise shift
+		// operations to mix the bits thoroughly. This results in a
+		// more even distribution of hash values and is more performant
+		// than JavaStringHash, especially for longer keys.
+		HashingScheme: pulsar.Murmur3_32Hash,
 	})
 	if err != nil {
 		return err

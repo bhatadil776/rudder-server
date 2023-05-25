@@ -38,8 +38,8 @@ func main() {
 	}()
 
 	var (
-		numUsers     = 100
-		messageCount = 100
+		numUsers     = 10
+		messageCount = 1000
 		client       = &http.Client{}
 		srvEndpoint  = "http://localhost:8080/"
 	)
@@ -47,7 +47,7 @@ func main() {
 	switch mode {
 	case "ORDER":
 		var eg errgroup.Group
-		for i := 1; i <= numUsers; i++ {
+		for i := 0; i < numUsers; i++ {
 			userID := i
 			eg.Go(func() error {
 				return sendMessages(ctx, client, srvEndpoint, userID, messageCount)
@@ -69,7 +69,7 @@ func main() {
 		messagePayload := rand.UniqueString(128)
 
 		var eg errgroup.Group
-		for i := 1; i <= numUsers; i++ {
+		for i := 0; i < numUsers; i++ {
 			userID := i
 			eg.Go(func() error {
 				return sendMessagesPerformance(ctx, client, srvEndpoint, userID, messageCount, messagePayload)
@@ -94,7 +94,7 @@ func sendMessagesPerformance(
 			return fmt.Errorf("failed to create request: %v", err)
 		}
 
-		req.Header.Set("X-User-ID", fmt.Sprintf("user-%02d", userID))
+		req.Header.Set("X-User-ID", fmt.Sprintf("%d", userID))
 		req.Header.Set("Content-Type", "text/plain")
 
 		resp, err := c.Do(req)
@@ -126,7 +126,7 @@ func sendMessages(ctx context.Context, c *http.Client, endpoint string, userID, 
 			return fmt.Errorf("failed to create request: %v", err)
 		}
 
-		req.Header.Set("X-User-ID", fmt.Sprintf("user-%02d", userID))
+		req.Header.Set("X-User-ID", fmt.Sprintf("%d", userID))
 		req.Header.Set("Content-Type", "text/plain")
 
 		resp, err := c.Do(req)
