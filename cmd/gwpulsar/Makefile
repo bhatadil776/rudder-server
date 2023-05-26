@@ -6,6 +6,7 @@ IMAGE_VERSION := $(shell date +%Y%m%d%H%M%S)
 IMAGE_NAME := $(DOCKER_REGISTRY)/$(REGISTRY_USERNAME)/$(IMAGE_NAME)
 TAGGED_IMAGE_NAME := $(IMAGE_NAME):$(IMAGE_VERSION)
 PARTITIONS := 1
+BROKER := 0
 
 # PULSAR VARS
 TOPIC_NAME := gwpulsar-test
@@ -92,3 +93,7 @@ gwpulsar-pf:
 .PHONY: gwpulsar-logs
 gwpulsar-logs:
 	kubectl -n $(GWPULSAR_NAMESPACE) logs -l app=pulsar-exp -f
+
+.PHONY: kill
+kill:
+	kubectl -n pulsar delete pod pulsar-broker-$(BROKER) --force --grace-period=0
