@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/cenkalti/backoff/v4"
 )
 
 func main() {
@@ -89,6 +90,8 @@ func run(
 			}
 			return partition
 		},
+		SendTimeout:   3 * time.Minute,
+		BackoffPolicy: backoffAdapter{backoff: backoff.NewConstantBackOff(time.Second)},
 	})
 	if err != nil {
 		return err
@@ -124,8 +127,7 @@ func run(
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
+		ctx := r.Context()
 
 		// Publish request body to Pulsar topic with the specified timeout
 		msg := pulsar.ProducerMessage{
@@ -190,4 +192,14 @@ func run(
 	}
 
 	return nil
+}
+
+type backoffAdapter struct {
+	backoff backoff.BackOff
+}
+
+func (b backoffAdapter) Next() time.Duration {
+	next := b.backoff.NextBackOff()
+	log.Println("Next backoff:", next)
+	return next
 }
