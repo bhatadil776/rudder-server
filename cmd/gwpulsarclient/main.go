@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/cenkalti/backoff"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -89,7 +90,17 @@ func sendMessages(ctx context.Context, c *http.Client, endpoint string, userID, 
 		req.Header.Set("X-User-ID", fmt.Sprintf("%d", userID))
 		req.Header.Set("Content-Type", "text/plain")
 
-		resp, err := c.Do(req)
+		var resp *http.Response
+		operation := func() error {
+			resp, err = c.Do(req)
+			return err
+		}
+		backoffWithMaxRetry := backoff.WithContext(
+			backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 3), ctx,
+		)
+		err = backoff.RetryNotify(operation, backoffWithMaxRetry, func(err error, t time.Duration) {
+			log.Printf("Failed to POST with error: %v, retrying after %v", err, t)
+		})
 		if err != nil {
 			return fmt.Errorf("could not do request: %v", err)
 		}
