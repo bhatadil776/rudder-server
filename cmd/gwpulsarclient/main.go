@@ -40,15 +40,11 @@ func main() {
 		log.Fatal("Invalid NUM_MESSAGES value:", err)
 	}
 
-	start := time.Now()
-	defer func() {
-		log.Printf("Total time: %s", time.Since(start))
-	}()
-
 	client := &http.Client{}
 
 	switch mode {
 	case "ORDER":
+		start := time.Now()
 		var eg errgroup.Group
 		for i := 0; i < numUsersInt; i++ {
 			userID := i
@@ -61,6 +57,8 @@ func main() {
 			log.Fatalf("Could not send messages: %v", err)
 		}
 
+		log.Printf("Total time: %s", time.Since(start))
+		log.Printf("Message throughput: %f msg/s", float64(numUsersInt*numMessagesInt)/time.Since(start).Seconds())
 		log.Println("Done publishing!")
 	case "VERIFY":
 		if pulsarURL == "" || topicName == "" {
