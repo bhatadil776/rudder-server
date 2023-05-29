@@ -55,6 +55,9 @@ func run(
 	maxConnectionsPerBroker int,
 ) error {
 	// Create Pulsar client and producer
+	log.Printf("Starting client with URL %q and MaxConnectionsPerBroker %d",
+		pulsarURL, maxConnectionsPerBroker,
+	)
 	client, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL:                     pulsarURL,
 		MaxConnectionsPerBroker: maxConnectionsPerBroker,
@@ -64,7 +67,7 @@ func run(
 	}
 	defer client.Close()
 
-	producer, err := client.CreateProducer(pulsar.ProducerOptions{
+	producerOpts := pulsar.ProducerOptions{
 		Topic:                   topicName,
 		BatchingMaxPublishDelay: batchMaxDelay,
 		BatchingMaxMessages:     uint(batchMaxMessages),
@@ -92,7 +95,11 @@ func run(
 		},
 		SendTimeout:   3 * time.Minute,
 		BackoffPolicy: backoffAdapter{backoff: backoff.NewConstantBackOff(time.Second)},
-	})
+	}
+
+	log.Printf("Starting producer with configuration %+v", producerOpts)
+
+	producer, err := client.CreateProducer(producerOpts)
 	if err != nil {
 		return err
 	}
