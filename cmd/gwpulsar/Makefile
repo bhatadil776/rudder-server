@@ -92,7 +92,7 @@ gwpulsar-pf:
 
 .PHONY: gwpulsar-logs
 gwpulsar-logs:
-	kubectl -n $(GWPULSAR_NAMESPACE) logs -l app=pulsar-exp -f
+	kubectl -n $(GWPULSAR_NAMESPACE) logs --since=1h -l app=pulsar-exp -f
 
 .PHONY: kill
 kill:
