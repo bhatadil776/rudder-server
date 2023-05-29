@@ -37,3 +37,8 @@ run-verify:
 	PULSAR_URL=$(PULSAR_URL) TOPIC_NAME=$(TOPIC_NAME) MODE=VERIFY \
 	NUM_USERS=$(NUM_USERS) NUM_MESSAGES=$(NUM_MESSAGES) \
 		go run main.go
+
+.PHONY: reset-cursor
+reset-cursor:
+	kubectl -n pulsar exec -it pulsar-toolset-0 -- bin/pulsar-admin \
+		topics reset-cursor $(TOPIC_NAME) -s test-client-subscription -t 999w
