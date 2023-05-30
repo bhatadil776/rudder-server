@@ -1,7 +1,9 @@
 # Build stage
-FROM golang:1.20-alpine3.18 AS builder
+# Using bullseye because alpine does not have git which is required to avoid proxy.golang.org timeouts
+FROM golang:1.20.4-bullseye AS builder
 
-RUN apk add --update make tzdata ca-certificates
+RUN apt update && \
+    apt install make tzdata ca-certificates git
 
 # Set work directory
 WORKDIR /app
@@ -10,7 +12,8 @@ WORKDIR /app
 COPY go.mod go.sum ./
 
 # Download all dependencies
-RUN go mod download
+# Using GOPROXY=direct to avoid proxy.golang.org timeouts
+RUN GOPROXY=direct go mod download
 
 # Copy the source from the current directory to the working directory inside the container
 COPY . .
