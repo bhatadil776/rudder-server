@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -46,7 +48,21 @@ func main() {
 		log.Fatal("Invalid MESSAGES_PER_USER value:", err)
 	}
 
-	client := &http.Client{}
+	tr := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 15 * time.Second,
+		}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		MaxIdleConns:          numSourcesInt,
+		MaxConnsPerHost:       numSourcesInt,
+	}
+	client := &http.Client{
+		Transport: tr,
+		Timeout:   10 * time.Second,
+	}
 
 	switch mode {
 	case "ORDER":
@@ -114,10 +130,7 @@ func sendMessages(
 		if err != nil {
 			return fmt.Errorf("could not do request: %v", err)
 		}
-		err = resp.Body.Close()
-		if err != nil {
-			return fmt.Errorf("could not close response body: %v", err)
-		}
+		closeResponse(resp)
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("received non-OK status code: %v", resp.StatusCode)
 		}
@@ -220,4 +233,12 @@ func verifyMessages(
 
 func createMessagePayload(userID, messageNumber int) string {
 	return strconv.Itoa(userID) + ":" + strconv.Itoa(messageNumber)
+}
+
+func closeResponse(resp *http.Response) {
+	if resp != nil && resp.Body != nil {
+		const maxBodySlurpSize = 2 << 10 // 2KB
+		_, _ = io.CopyN(io.Discard, resp.Body, maxBodySlurpSize)
+		_ = resp.Body.Close()
+	}
 }
