@@ -17,10 +17,12 @@ spec:
         env:
         - name: SERVER_ENDPOINT
           value: "http://pulsar-exp-svc.fcasula.svc.cluster.local:8080"
-        - name: NUM_USERS
-          value: "10"
-        - name: NUM_MESSAGES
-          value: "1000"
+        - name: NUM_SOURCES
+          value: "5"
+        - name: USERS_PER_SOURCE
+          value: "2"
+        - name: MESSAGES_PER_USER
+          value: "500"
         - name: MODE
           value: "ORDER"
       imagePullSecrets:

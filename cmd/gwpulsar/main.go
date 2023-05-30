@@ -74,6 +74,7 @@ func run(
 		MaxPendingMessages:      batchMaxMessages,
 		BatchingMaxSize:         5242880, // 5 MB
 		BatcherBuilderType:      pulsar.KeyBasedBatchBuilder,
+		DisableBatching:         false,
 		// Murmur3_32Hash: MurmurHash3 operates on 4 bytes at a time,
 		// and involves a series of multiply, add, and bitwise shift
 		// operations to mix the bits thoroughly. This results in a
@@ -82,9 +83,8 @@ func run(
 		HashingScheme: pulsar.Murmur3_32Hash,
 		// Using custom message router to simplify testing the message throughput
 		MessageRouter: func(msg *pulsar.ProducerMessage, metadata pulsar.TopicMetadata) int {
-			userID := msg.Key
 			numPartitions := metadata.NumPartitions()
-			partition, err := strconv.Atoi(userID)
+			partition, err := strconv.Atoi(msg.Key)
 			if err != nil {
 				return -1 // default to round-robin
 			}
@@ -127,9 +127,9 @@ func run(
 			return
 		}
 
-		userID := r.Header.Get("X-User-ID")
-		if userID == "" {
-			log.Println("Missing X-User-ID header")
+		writeKey := r.Header.Get("X-WriteKey")
+		if writeKey == "" {
+			log.Println("Missing X-WriteKey header")
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
@@ -138,7 +138,7 @@ func run(
 
 		// Publish request body to Pulsar topic with the specified timeout
 		msg := pulsar.ProducerMessage{
-			Key:     userID,
+			Key:     writeKey,
 			Payload: body,
 		}
 

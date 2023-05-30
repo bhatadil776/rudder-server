@@ -23,22 +23,27 @@ func main() {
 	pulsarURL := os.Getenv("PULSAR_URL")
 	topicName := os.Getenv("TOPIC_NAME")
 	srvEndpoint := os.Getenv("SERVER_ENDPOINT")
-	numUsers := os.Getenv("NUM_USERS")
-	numMessages := os.Getenv("NUM_MESSAGES")
+	numSources := os.Getenv("NUM_SOURCES")
+	usersPerSource := os.Getenv("USERS_PER_SOURCE")
+	messagesPerUser := os.Getenv("MESSAGES_PER_USER")
 	mode := os.Getenv("MODE")
 
 	log.Printf(
 		"Starting with configuration: Pulsar URL: %s, Topic: %s, Mode: %q, Srv: %s, Users: %s, Msgs: %s\n",
-		pulsarURL, topicName, mode, srvEndpoint, numUsers, numMessages,
+		pulsarURL, topicName, mode, srvEndpoint, numSources, messagesPerUser,
 	)
 
-	numUsersInt, err := strconv.Atoi(numUsers)
+	numSourcesInt, err := strconv.Atoi(numSources)
 	if err != nil {
-		log.Fatal("Invalid NUM_USERS value:", err)
+		log.Fatal("Invalid NUM_SOURCES value:", err)
 	}
-	numMessagesInt, err := strconv.Atoi(numMessages)
+	usersPerSourceInt, err := strconv.Atoi(usersPerSource)
 	if err != nil {
-		log.Fatal("Invalid NUM_MESSAGES value:", err)
+		log.Fatal("Invalid USERS_PER_SOURCE value:", err)
+	}
+	messagesPerUserInt, err := strconv.Atoi(messagesPerUser)
+	if err != nil {
+		log.Fatal("Invalid MESSAGES_PER_USER value:", err)
 	}
 
 	client := &http.Client{}
@@ -47,11 +52,14 @@ func main() {
 	case "ORDER":
 		start := time.Now()
 		var eg errgroup.Group
-		for i := 0; i < numUsersInt; i++ {
-			userID := i
-			eg.Go(func() error {
-				return sendMessages(ctx, client, srvEndpoint, userID, numMessagesInt)
-			})
+		for i := 0; i < numSourcesInt; i++ {
+			writeKey := i
+			for j := 0; j < usersPerSourceInt; j++ {
+				userID := j
+				eg.Go(func() error {
+					return sendMessages(ctx, client, srvEndpoint, writeKey, userID, messagesPerUserInt)
+				})
+			}
 		}
 		err := eg.Wait()
 		if err != nil {
@@ -59,7 +67,9 @@ func main() {
 		}
 
 		log.Printf("Total time: %s", time.Since(start))
-		log.Printf("Message throughput: %f msg/s", float64(numUsersInt*numMessagesInt)/time.Since(start).Seconds())
+		log.Printf("Message throughput: %f msg/s",
+			float64(numSourcesInt*usersPerSourceInt*messagesPerUserInt)/time.Since(start).Seconds(),
+		)
 		log.Println("Done publishing!")
 	case "VERIFY":
 		if pulsarURL == "" || topicName == "" {
@@ -67,27 +77,27 @@ func main() {
 		}
 
 		// Subscribe and verify messages for all users
-		err := verifyMessages(ctx, pulsarURL, topicName, numUsersInt, numMessagesInt)
+		err := verifyMessages(ctx, pulsarURL, topicName, numSourcesInt, usersPerSourceInt, messagesPerUserInt)
 		if err != nil {
 			log.Printf("Could not verify messages: %v", err)
 		}
 	}
 }
 
-func sendMessages(ctx context.Context, c *http.Client, endpoint string, userID, messageCount int) error {
-	var (
-		sent int
-		key  = strconv.Itoa(userID)
-	)
+func sendMessages(
+	ctx context.Context, c *http.Client, endpoint string,
+	writeKey, userID, messageCount int,
+) error {
+	var sent int
 	for i := 1; i <= messageCount; i++ {
-		message := createMessagePayload(key, i)
+		message := createMessagePayload(userID, i)
 
 		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(message))
 		if err != nil {
 			return fmt.Errorf("failed to create request: %v", err)
 		}
 
-		req.Header.Set("X-User-ID", fmt.Sprintf("%d", userID))
+		req.Header.Set("X-WriteKey", strconv.Itoa(writeKey))
 		req.Header.Set("Content-Type", "text/plain")
 
 		var resp *http.Response
@@ -114,7 +124,7 @@ func sendMessages(ctx context.Context, c *http.Client, endpoint string, userID, 
 
 		sent++
 		if sent%100 == 0 {
-			log.Printf("User %02d: Sent %d messages", userID, sent)
+			log.Printf("WriteKey: %d, User %d: Sent %d messages", writeKey, userID, sent)
 		}
 	}
 
@@ -122,7 +132,10 @@ func sendMessages(ctx context.Context, c *http.Client, endpoint string, userID, 
 	return nil
 }
 
-func verifyMessages(ctx context.Context, pulsarURL, topicName string, numUsers, messageCount int) error {
+func verifyMessages(
+	ctx context.Context, pulsarURL, topicName string,
+	numSources, usersPerSource, messagesPerUser int,
+) error {
 	client, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL: pulsarURL,
 	})
@@ -141,29 +154,40 @@ func verifyMessages(ctx context.Context, pulsarURL, topicName string, numUsers, 
 	}
 	defer consumer.Close()
 
-	consumedMessages := make(map[string][]string)
+	consumedMessages := make(map[string]map[string][]string)
 	for {
 		msg, err := consumer.Receive(ctx)
 		if err != nil {
 			return fmt.Errorf("consumer receive error: %v", err)
 		}
 
-		log.Printf("Got message from user %q: %s", msg.Key(), msg.Payload())
+		log.Printf("Got message from writeKey %q: %s", msg.Key(), msg.Payload())
 
-		consumedMessages[msg.Key()] = append(consumedMessages[msg.Key()], string(msg.Payload()))
+		if consumedMessages[msg.Key()] == nil {
+			consumedMessages[msg.Key()] = make(map[string][]string)
+		}
+
+		data := strings.Split(string(msg.Payload()), ":")
+		consumedMessages[msg.Key()][data[0]] = append(consumedMessages[msg.Key()][data[0]], data[1])
 
 		if err := consumer.Ack(msg); err != nil {
 			return fmt.Errorf("could not ack message: %v: %v", msg.ID(), err)
 		}
 
-		if len(consumedMessages) != numUsers {
+		if len(consumedMessages) != numSources {
 			continue
 		}
 		allDone := true
-		for _, messages := range consumedMessages {
-			if len(messages) != messageCount {
+		for _, users := range consumedMessages {
+			if len(users) != usersPerSource {
 				allDone = false
 				break
+			}
+			for _, messages := range users {
+				if len(messages) != messagesPerUser {
+					allDone = false
+					break
+				}
 			}
 		}
 		if allDone {
@@ -172,22 +196,19 @@ func verifyMessages(ctx context.Context, pulsarURL, topicName string, numUsers, 
 	}
 
 	// Verify order of messages
-	for userID := 0; userID < numUsers; userID++ {
-		userKey := fmt.Sprintf("%d", userID)
-		messages := consumedMessages[userKey]
-		if len(messages) != messageCount {
-			return fmt.Errorf("incomplete messages received for user %s", userKey)
-		}
+	for writeKey := 0; writeKey < numSources; writeKey++ {
+		key := fmt.Sprintf("%d", writeKey)
+		for userID, messages := range consumedMessages[key] {
+			for i := 1; i <= messagesPerUser; i++ {
+				expectedMessage := fmt.Sprintf("%d", i)
+				receivedMessage := messages[i-1]
 
-		for i := 1; i <= messageCount; i++ {
-			expectedMessage := createMessagePayload(strconv.Itoa(userID), i)
-			receivedMessage := messages[i-1]
-
-			if expectedMessage != receivedMessage {
-				return fmt.Errorf(
-					"message order verification failed for user %s: expected %s, received %s",
-					userKey, expectedMessage, receivedMessage,
-				)
+				if expectedMessage != receivedMessage {
+					return fmt.Errorf(
+						"message order verification failed for writeKey %d user %s: expected %s, received %s",
+						writeKey, userID, expectedMessage, receivedMessage,
+					)
+				}
 			}
 		}
 	}
@@ -197,6 +218,6 @@ func verifyMessages(ctx context.Context, pulsarURL, topicName string, numUsers, 
 	return nil
 }
 
-func createMessagePayload(userID string, messageNumber int) string {
-	return userID + strconv.Itoa(messageNumber)
+func createMessagePayload(userID, messageNumber int) string {
+	return strconv.Itoa(userID) + ":" + strconv.Itoa(messageNumber)
 }
