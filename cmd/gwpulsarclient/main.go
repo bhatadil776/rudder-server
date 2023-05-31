@@ -31,8 +31,9 @@ func main() {
 	mode := os.Getenv("MODE")
 
 	log.Printf(
-		"Starting with configuration: Pulsar URL: %s, Topic: %s, Mode: %q, Srv: %s, Users: %s, Msgs: %s\n",
-		pulsarURL, topicName, mode, srvEndpoint, numSources, messagesPerUser,
+		"Starting with configuration: Pulsar URL: %s, Topic: %s, Mode: %q, Srv: %s, "+
+			"Sources: %s, Users: %s, Msgs: %s\n",
+		pulsarURL, topicName, mode, srvEndpoint, numSources, usersPerSource, messagesPerUser,
 	)
 
 	numSourcesInt, err := strconv.Atoi(numSources)
