@@ -30,7 +30,7 @@ spec:
         - name: BATCH_MAX_MESSAGES
           value: "1000"
         - name: MAX_CONNECTIONS_PER_BROKER
-          value: "10"
+          value: "20"
       imagePullSecrets:
       - name: regcred
 ---
