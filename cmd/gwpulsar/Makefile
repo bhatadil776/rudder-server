@@ -1,11 +1,11 @@
 GWPULSAR_NAMESPACE := fcasula
 REGISTRY_USERNAME := fracasula
-IMAGE_NAME := pulsar-exp
+IMAGE_NAME := gwpulsar
 DOCKER_REGISTRY := docker.io
 IMAGE_VERSION := $(shell date +%Y%m%d%H%M%S)
 IMAGE_NAME := $(DOCKER_REGISTRY)/$(REGISTRY_USERNAME)/$(IMAGE_NAME)
 TAGGED_IMAGE_NAME := $(IMAGE_NAME):$(IMAGE_VERSION)
-PARTITIONS := 1
+PARTITIONS := 100
 BROKER := 0
 
 # PULSAR VARS
@@ -87,12 +87,12 @@ pulsar-proxy:
 .PHONY: gwpulsar-pf
 gwpulsar-pf:
 	kubectl -n $(GWPULSAR_NAMESPACE) port-forward \
-		$$(kubectl -n fcasula get pods -l app=pulsar-exp -o jsonpath='{.items[*].metadata.name}') \
+		$$(kubectl -n fcasula get pods -l app=gwpulsar -o jsonpath='{.items[*].metadata.name}') \
 		8080
 
 .PHONY: gwpulsar-logs
 gwpulsar-logs:
-	kubectl -n $(GWPULSAR_NAMESPACE) logs --since=1h -l app=pulsar-exp -f
+	kubectl -n $(GWPULSAR_NAMESPACE) logs --since=1h -l app=gwpulsar -f
 
 .PHONY: kill
 kill:

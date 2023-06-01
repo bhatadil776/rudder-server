@@ -1,4 +1,4 @@
-module gwpulsarclient
+module gwpulsarsender
 
 go 1.20
 

@@ -13,7 +13,8 @@ COPY go.mod go.sum ./
 
 # Download all dependencies
 # Using GOPROXY=direct to avoid proxy.golang.org timeouts
-RUN GOPROXY=direct go mod download
+#RUN GOPROXY=direct go mod download
+RUN go mod download
 
 # Copy the source from the current directory to the working directory inside the container
 COPY . .

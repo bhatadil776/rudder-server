@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pulsar-exp-deployment
+  name: gwpulsar-deployment
   labels:
-    app: pulsar-exp
+    app: gwpulsar
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: pulsar-exp
+      app: gwpulsar
   template:
     metadata:
       labels:
-        app: pulsar-exp
+        app: gwpulsar
     spec:
       containers:
       - name: pulsar-exp
-        image: fracasula/pulsar-exp:latest
+        image: fracasula/gwpulsar:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -37,9 +37,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: pulsar-exp-svc
+  name: gwpulsar-svc
   labels:
-    app: pulsar-exp
+    app: gwpulsar
 spec:
   type: ClusterIP
   ports:
@@ -48,4 +48,4 @@ spec:
     protocol: TCP
     name: http
   selector:
-    app: pulsar-exp
+    app: gwpulsar

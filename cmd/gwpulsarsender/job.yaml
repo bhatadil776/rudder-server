@@ -1,24 +1,24 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: pulsar-sender-job
+  name: gwpulsar-sender-job
   labels:
-    app: pulsar-sender
+    app: gwpulsar-sender
 spec:
   template:
     metadata:
       labels:
-        app: pulsar-sender
+        app: gwpulsar-sender
     spec:
       containers:
       - name: pulsar-sender
-        image: fracasula/pulsar-sender:latest
+        image: fracasula/gwpulsar-sender:latest
         imagePullPolicy: Always
         env:
         - name: SERVER_ENDPOINT
-          value: "http://pulsar-exp-svc.fcasula.svc.cluster.local:8080"
+          value: "http://gwpulsar-svc.fcasula.svc.cluster.local:8080"
         - name: NUM_SOURCES
-          value: "500"
+          value: "100"
         - name: USERS_PER_SOURCE
           value: "5"
         - name: MESSAGES_PER_USER

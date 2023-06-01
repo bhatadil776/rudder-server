@@ -1,6 +1,6 @@
 GWPULSAR_NAMESPACE := fcasula
 REGISTRY_USERNAME := fracasula
-IMAGE_NAME := pulsar-sender
+IMAGE_NAME := gwpulsar-sender
 DOCKER_REGISTRY := docker.io
 IMAGE_NAME := $(DOCKER_REGISTRY)/$(REGISTRY_USERNAME)/$(IMAGE_NAME)
 PULSAR_URL = pulsar://localhost:6650
@@ -31,7 +31,7 @@ undeploy:
 
 .PHONY: logs
 logs:
-	kubectl -n $(GWPULSAR_NAMESPACE) logs -l app=pulsar-sender -f
+	kubectl -n $(GWPULSAR_NAMESPACE) logs -l app=gwpulsar-sender -f
 
 .PHONY: run-verify
 run-verify:
