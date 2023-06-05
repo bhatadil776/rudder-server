@@ -59,8 +59,6 @@ func setup(t *testing.T, pool *dockertest.Pool) testResource {
 }
 
 func TestValidator(t *testing.T) {
-	t.Parallel()
-
 	misc.Init()
 	warehouseutils.Init()
 	encoding.Init()
@@ -79,8 +77,6 @@ func TestValidator(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Object Storage", func(t *testing.T) {
-		t.Parallel()
-
 		t.Run("Non Datalakes", func(t *testing.T) {
 			tr := setup(t, pool)
 			pgResource, minioResource := tr.pgResource, tr.minioResource
@@ -142,8 +138,6 @@ func TestValidator(t *testing.T) {
 	})
 
 	t.Run("Connections", func(t *testing.T) {
-		t.Parallel()
-
 		testCases := []struct {
 			name      string
 			config    map[string]interface{}
@@ -204,8 +198,6 @@ func TestValidator(t *testing.T) {
 	})
 
 	t.Run("Create Schema", func(t *testing.T) {
-		t.Parallel()
-
 		var (
 			password            = "test_password"
 			userWithNoPrivilege = "test_user_with_no_privilege"
@@ -280,8 +272,6 @@ func TestValidator(t *testing.T) {
 	})
 
 	t.Run("Create And Alter Table", func(t *testing.T) {
-		t.Parallel()
-
 		var (
 			password                     = "test_password"
 			userWithNoPrivilege          = "test_user_with_no_privilege"
@@ -424,8 +414,6 @@ func TestValidator(t *testing.T) {
 	})
 
 	t.Run("Load table", func(t *testing.T) {
-		t.Parallel()
-
 		var (
 			password                     = "test_password"
 			userWithNoPrivilege          = "test_user_with_no_privilege"

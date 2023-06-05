@@ -16,8 +16,6 @@ import (
 )
 
 func TestValidate(t *testing.T) {
-	t.Parallel()
-
 	misc.Init()
 	warehouseutils.Init()
 	encoding.Init()
@@ -35,8 +33,6 @@ func TestValidate(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("invalid path", func(t *testing.T) {
-		t.Parallel()
-
 		_, err := validations.Validate(ctx, &model.ValidationRequest{
 			Path: "invalid",
 		})
@@ -44,8 +40,6 @@ func TestValidate(t *testing.T) {
 	})
 
 	t.Run("steps", func(t *testing.T) {
-		t.Parallel()
-
 		res, err := validations.Validate(ctx, &model.ValidationRequest{
 			Path: "steps",
 			Destination: &backendconfig.DestinationT{
@@ -60,11 +54,7 @@ func TestValidate(t *testing.T) {
 	})
 
 	t.Run("validate", func(t *testing.T) {
-		t.Parallel()
-
 		t.Run("invalid step", func(t *testing.T) {
-			t.Parallel()
-
 			res, err := validations.Validate(ctx, &model.ValidationRequest{
 				Path: "validate",
 				Step: "invalid",
@@ -80,8 +70,6 @@ func TestValidate(t *testing.T) {
 		})
 
 		t.Run("step not found", func(t *testing.T) {
-			t.Parallel()
-
 			res, err := validations.Validate(ctx, &model.ValidationRequest{
 				Path: "validate",
 				Step: "1000",
@@ -97,8 +85,6 @@ func TestValidate(t *testing.T) {
 		})
 
 		t.Run("invalid destination", func(t *testing.T) {
-			t.Parallel()
-
 			res, err := validations.Validate(ctx, &model.ValidationRequest{
 				Path: "validate",
 				Step: "2",
@@ -114,8 +100,6 @@ func TestValidate(t *testing.T) {
 		})
 
 		t.Run("step error", func(t *testing.T) {
-			t.Parallel()
-
 			res, err := validations.Validate(ctx, &model.ValidationRequest{
 				Path: "validate",
 				Destination: &backendconfig.DestinationT{
@@ -130,8 +114,6 @@ func TestValidate(t *testing.T) {
 		})
 
 		t.Run("invalid destination", func(t *testing.T) {
-			t.Parallel()
-
 			res, err := validations.Validate(ctx, &model.ValidationRequest{
 				Path: "validate",
 				Step: "2",
@@ -147,8 +129,6 @@ func TestValidate(t *testing.T) {
 		})
 
 		t.Run("empty step", func(t *testing.T) {
-			t.Parallel()
-
 			tr := setup(t, pool)
 			pgResource, minioResource := tr.pgResource, tr.minioResource
 
@@ -181,8 +161,6 @@ func TestValidate(t *testing.T) {
 		})
 
 		t.Run("steps in order", func(t *testing.T) {
-			t.Parallel()
-
 			tr := setup(t, pool)
 			pgResource, minioResource := tr.pgResource, tr.minioResource
 
