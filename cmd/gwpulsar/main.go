@@ -21,6 +21,7 @@ func main() {
 	batchMaxDelay := os.Getenv("BATCH_MAX_DELAY")
 	batchMaxMessages := os.Getenv("BATCH_MAX_MESSAGES")
 	maxConnectionsPerBroker := os.Getenv("MAX_CONNECTIONS_PER_BROKER")
+	customMessageRouter := os.Getenv("CUSTOM_MESSAGE_ROUTER")
 	if pulsarURL == "" || topicName == "" {
 		log.Fatal("Required environment variables are not set: PULSAR_URL or TOPIC_NAME")
 	}
@@ -36,12 +37,19 @@ func main() {
 	if err != nil {
 		log.Fatal("Invalid MAX_CONNECTIONS_PER_BROKER value:", err)
 	}
+	customMessageRouterBool, err := strconv.ParseBool(customMessageRouter)
+	if err != nil {
+		log.Fatal("Invalid CUSTOM_MESSAGE_ROUTER value:", err)
+	}
 
 	log.Printf("Starting with configuration: Pulsar URL: %s, Topic: %s, BatchMaxDelay: %s, BatchMaxMessages: %d\n",
 		pulsarURL, topicName, batchMaxDelayDuration, batchMaxMessagesInt,
 	)
 
-	err = run(pulsarURL, topicName, batchMaxDelayDuration, batchMaxMessagesInt, maxConnectionsPerBrokerInt)
+	err = run(
+		pulsarURL, topicName, batchMaxDelayDuration, batchMaxMessagesInt,
+		maxConnectionsPerBrokerInt, customMessageRouterBool,
+	)
 	if err != nil {
 		log.Fatal("Server error:", err)
 	}
@@ -53,6 +61,7 @@ func run(
 	batchMaxDelay time.Duration,
 	batchMaxMessages int,
 	maxConnectionsPerBroker int,
+	customMessageRouter bool,
 ) error {
 	// Create Pulsar client and producer
 	log.Printf("Starting client with URL %q and MaxConnectionsPerBroker %d",
@@ -75,26 +84,30 @@ func run(
 		BatchingMaxSize:         5242880, // 5 MB
 		BatcherBuilderType:      pulsar.KeyBasedBatchBuilder,
 		DisableBatching:         false,
-		// Murmur3_32Hash: MurmurHash3 operates on 4 bytes at a time,
-		// and involves a series of multiply, add, and bitwise shift
-		// operations to mix the bits thoroughly. This results in a
-		// more even distribution of hash values and is more performant
-		// than JavaStringHash, especially for longer keys.
-		HashingScheme: pulsar.Murmur3_32Hash,
+		SendTimeout:             3 * time.Minute,
+		BackoffPolicy:           backoffAdapter{backoff: backoff.NewConstantBackOff(time.Second)},
+	}
+	if customMessageRouter {
 		// Using custom message router to simplify testing the message throughput
-		MessageRouter: func(msg *pulsar.ProducerMessage, metadata pulsar.TopicMetadata) int {
+		producerOpts.MessageRouter = func(msg *pulsar.ProducerMessage, metadata pulsar.TopicMetadata) int {
 			numPartitions := metadata.NumPartitions()
 			partition, err := strconv.Atoi(msg.Key)
 			if err != nil {
 				return -1 // default to round-robin
 			}
 			if uint32(partition) >= numPartitions {
+				log.Printf("Invalid partition key %q with partitions %d", msg.Key, numPartitions)
 				return -1 // default to round-robin
 			}
 			return partition
-		},
-		SendTimeout:   3 * time.Minute,
-		BackoffPolicy: backoffAdapter{backoff: backoff.NewConstantBackOff(time.Second)},
+		}
+	} else {
+		// Murmur3_32Hash: MurmurHash3 operates on 4 bytes at a time,
+		// and involves a series of multiply, add, and bitwise shift
+		// operations to mix the bits thoroughly. This results in a
+		// more even distribution of hash values and is more performant
+		// than JavaStringHash, especially for longer keys.
+		producerOpts.HashingScheme = pulsar.Murmur3_32Hash
 	}
 
 	log.Printf("Starting producer with configuration %+v", producerOpts)

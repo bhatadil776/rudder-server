@@ -25,6 +25,8 @@ spec:
           value: "pulsar://pulsar-broker.pulsar.svc.cluster.local:6650"
         - name: TOPIC_NAME
           value: "persistent://public/fcasula/gwpulsar-test"
+        - name: CUSTOM_MESSAGE_ROUTER
+          value: "false"
         - name: BATCH_MAX_DELAY
           value: "10ms"
         - name: BATCH_MAX_MESSAGES
