@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulsar-consumer-deployment
+  labels:
+    app: pulsar-consumer
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: pulsar-consumer
+  template:
+    metadata:
+      labels:
+        app: pulsar-consumer
+    spec:
+      containers:
+      - name: pulsar-consumer
+        image: fracasula/pulsar-consumer:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PULSAR_URL
+          value: "pulsar://pulsar-broker.pulsar.svc.cluster.local:6650"
+        - name: TOPIC_NAME
+          value: "persistent://public/fcasula/gwpulsar-test"
+        - name: BATCH_MAX_DELAY
+          value: "10ms"
+        - name: BATCH_MAX_MESSAGES
+          value: "1000"
+        - name: MAX_CONNECTIONS_PER_BROKER
+          value: "20"
+      imagePullSecrets:
+      - name: regcred
