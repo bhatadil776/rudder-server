@@ -16,11 +16,11 @@ push: build
 
 .PHONY: deploy
 deploy:
-	kubectl -n $(GWPULSAR_NAMESPACE) apply -f job.yaml
+	kubectl -n $(GWPULSAR_NAMESPACE) apply -f deployment.yaml
 
 .PHONY: undeploy
 undeploy:
-	kubectl -n $(GWPULSAR_NAMESPACE) delete -f job.yaml
+	kubectl -n $(GWPULSAR_NAMESPACE) delete -f deployment.yaml
 
 .PHONY: reset-cursor
 reset-cursor:
