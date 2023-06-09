@@ -31,35 +31,22 @@ func main() {
 	usersPerSource := mustReadIntEnvVar("USERS_PER_SOURCE")
 	messagesPerUser := mustReadIntEnvVar("MESSAGES_PER_USER")
 
-	log.Printf(
-		"Starting with configuration: Mode: %q, Pulsar URL: %s, Topic: %s, SrvEndpoint: %s, "+
-			"NoOfNodes: %d, Sources: %d, Users per source: %d, Msgs per user: %d\n",
-		mode, pulsarURL, topicName, srvEndpoint,
-		noOfNodes, numSources, usersPerSource, messagesPerUser,
-	)
-
-	tr := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 15 * time.Second,
-		}).DialContext,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 10 * time.Second,
-		ResponseHeaderTimeout: 10 * time.Second,
-		MaxIdleConns:          numSources,
-		MaxConnsPerHost:       numSources,
-	}
-	client := &http.Client{
-		Transport: tr,
-		Timeout:   10 * time.Second,
-	}
-
 	switch mode {
 	case "ORDER":
+		log.Printf(
+			"Starting with configuration: Mode: %q, SrvEndpoint: %s, "+
+				"NoOfNodes: %d, Sources: %d, Users per source: %d, Msgs per user: %d\n",
+			mode, srvEndpoint,
+			noOfNodes, numSources, usersPerSource, messagesPerUser,
+		)
+
 		start := time.Now()
 		var eg errgroup.Group
 		for k := 0; k < noOfNodes; k++ {
-			nodeNumber := k
+			var (
+				nodeNumber = k
+				client     = newHTTPClient(10, 10)
+			)
 			for i := 0; i < numSources; i++ {
 				writeKey := i
 				for j := 0; j < usersPerSource; j++ {
@@ -80,13 +67,18 @@ func main() {
 
 		log.Printf("Total time: %s", time.Since(start))
 		log.Printf("Message throughput: %f msg/s",
-			float64(numSources*usersPerSource*messagesPerUser)/time.Since(start).Seconds(),
+			float64(noOfNodes*numSources*usersPerSource*messagesPerUser)/time.Since(start).Seconds(),
 		)
 		log.Println("Done publishing!")
 	case "VERIFY":
 		if pulsarURL == "" || topicName == "" {
 			log.Fatal("Required environment variables are not set: PULSAR_URL or TOPIC_NAME")
 		}
+
+		log.Printf(
+			"Starting with configuration: Mode: %q, Pulsar URL: %s, Topic: %s\n",
+			mode, pulsarURL, topicName,
+		)
 
 		// Subscribe and verify messages for all users
 		var eg errgroup.Group
@@ -114,6 +106,7 @@ func sendMessages(
 
 		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(message))
 		if err != nil {
+			log.Printf("[ERROR] Failed to create request: %v", err)
 			return fmt.Errorf("failed to create request: %v", err)
 		}
 
@@ -128,25 +121,31 @@ func sendMessages(
 			return err
 		}
 		backoffWithMaxRetry := backoff.WithContext(
-			backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 3), ctx,
+			backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 10), ctx,
 		)
 		err = backoff.RetryNotify(operation, backoffWithMaxRetry, func(err error, t time.Duration) {
-			log.Printf("Failed to POST with error: %v, retrying after %v", err, t)
+			// log.Printf("[WARN] Failed to POST with error: %v, retrying after %v", err, t)
 		})
 		if err != nil {
+			log.Printf("[ERROR] Failed to POST with error: %v", err)
 			return fmt.Errorf("could not do request: %v", err)
 		}
 		if resp.StatusCode != http.StatusOK {
+			log.Printf("[ERROR] Received non-OK status code: %v", resp.StatusCode)
 			return fmt.Errorf("received non-OK status code: %v", resp.StatusCode)
 		}
 
 		sent++
 		if sent%100 == 0 {
-			log.Printf("WriteKey: %d, User %d: Sent %d messages", writeKey, userID, sent)
+			log.Printf("Node: %d, WriteKey: %d, User %d: Sent %d messages",
+				nodeNumber, writeKey, userID, sent,
+			)
 		}
 	}
 
-	log.Printf("User %02d: Sent %d messages", userID, messageCount)
+	log.Printf("User %02d: Sent %d messages to node %d and writeKey %d",
+		userID, messageCount, nodeNumber, writeKey,
+	)
 	return nil
 }
 
@@ -234,6 +233,23 @@ func verifyMessages(
 	log.Println("Message verification successful")
 
 	return nil
+}
+
+func newHTTPClient(maxIdleConns, maxConnsPerHost int) *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   10 * time.Second,
+				KeepAlive: 10 * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			MaxIdleConns:          maxIdleConns,
+			MaxConnsPerHost:       maxConnsPerHost,
+		},
+		Timeout: 10 * time.Second,
+	}
 }
 
 func createMessagePayload(userID, messageNumber int) string {

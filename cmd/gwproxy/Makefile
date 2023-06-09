@@ -21,3 +21,7 @@ deploy:
 .PHONY: undeploy
 undeploy:
 	kubectl -n $(GWPULSAR_NAMESPACE) delete -f deployment.yaml
+
+.PHONY: logs
+logs:
+	kubectl -n $(GWPULSAR_NAMESPACE) logs -l app=gwproxy -f

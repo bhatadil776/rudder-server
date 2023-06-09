@@ -14,8 +14,6 @@ import (
 	"os/signal"
 	"strconv"
 	"time"
-
-	"github.com/cenkalti/backoff"
 )
 
 func main() {
@@ -48,7 +46,7 @@ func run() error {
 	}
 	client := &http.Client{
 		Transport: tr,
-		Timeout:   30 * time.Second,
+		Timeout:   0, // no timeout on proxy, the client should timeout and cancel the request
 	}
 
 	httpSrv := &http.Server{
@@ -71,27 +69,19 @@ func run() error {
 			r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
 			r.RequestURI = ""
 
-			var (
-				err  error
-				resp *http.Response
-			)
-			operation := func() error {
-				resp, err = client.Do(r)
-				defer closeResponse(resp)
-				return err
-			}
-			backoffWithMaxRetry := backoff.WithContext(
-				backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 3), ctx,
-			)
-			err = backoff.RetryNotify(operation, backoffWithMaxRetry, func(err error, t time.Duration) {
-				log.Printf("Failed to POST with error: %v, retrying after %v", err, t)
-			})
-
+			resp, err := client.Do(r)
+			defer closeResponse(resp)
 			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					// Request was canceled by the client, nothing to do here
+					return
+				}
+				log.Printf("[ERROR] Failed to proxy request: %v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			if resp.StatusCode != http.StatusOK {
+				log.Printf("[ERROR] Unexpected status code: %d", resp.StatusCode)
 				http.Error(w, "unexpected status code", http.StatusInternalServerError)
 			}
 		}),
