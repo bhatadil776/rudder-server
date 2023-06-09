@@ -23,4 +23,4 @@ undeploy:
 
 .PHONY: logs
 logs:
-	kubectl -n $(GWPULSAR_NAMESPACE) logs -l app=gwpulsar-sender -f
+	kubectl -n $(GWPULSAR_NAMESPACE) logs -l app=gwsender -f
