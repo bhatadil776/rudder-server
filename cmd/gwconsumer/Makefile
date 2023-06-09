@@ -1,9 +1,8 @@
 GWPULSAR_NAMESPACE := fcasula
 REGISTRY_USERNAME := fracasula
-IMAGE_NAME := pulsar-consumer
+IMAGE_NAME := gwconsumer
 DOCKER_REGISTRY := docker.io
 IMAGE_NAME := $(DOCKER_REGISTRY)/$(REGISTRY_USERNAME)/$(IMAGE_NAME)
-PULSAR_URL = pulsar://localhost:6650
 TOPIC_NAME = persistent://public/fcasula/gwpulsar-test
 
 .PHONY: build
@@ -12,7 +11,6 @@ build:
 
 .PHONY: push
 push: build
-	#docker tag $(IMAGE_NAME) $(TAGGED_IMAGE_NAME)
 	docker tag $(IMAGE_NAME) $(IMAGE_NAME):latest
 	docker push $(IMAGE_NAME):latest
 

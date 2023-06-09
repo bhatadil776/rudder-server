@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pulsar-consumer-deployment
+  name: gwconsumer-deployment
   labels:
-    app: pulsar-consumer
+    app: gwconsumer
 spec:
   replicas: 10
   selector:
     matchLabels:
-      app: pulsar-consumer
+      app: gwconsumer
   template:
     metadata:
       labels:
-        app: pulsar-consumer
+        app: gwconsumer
     spec:
       containers:
-      - name: pulsar-consumer
-        image: fracasula/pulsar-consumer:latest
+      - name: gwconsumer
+        image: fracasula/gwconsumer:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
