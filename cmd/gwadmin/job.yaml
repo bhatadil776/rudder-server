@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pulsar-admin-job
+  labels:
+    app: pulsar-admin
+spec:
+  template:
+    metadata:
+      labels:
+        app: pulsar-admin
+    spec:
+      containers:
+      - name: pulsar-admin
+        image: fracasula/pulsar-admin:latest
+        imagePullPolicy: Always
+        env:
+        - name: PULSAR_URL
+          value: "http://pulsar-proxy.pulsar.svc.cluster.local:8080"
+        - name: TOPIC_NAME
+          value: "persistent://public/fcasula/gwpulsar-test"
+      imagePullSecrets:
+      - name: regcred
+      restartPolicy: Never
+  backoffLimit: 4
