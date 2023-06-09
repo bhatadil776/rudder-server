@@ -43,12 +43,12 @@ func run() error {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 10 * time.Second,
 		ResponseHeaderTimeout: 10 * time.Second,
-		MaxIdleConns:          100 * noOfNodes,
-		MaxConnsPerHost:       100,
+		MaxIdleConns:          20,
+		MaxConnsPerHost:       20 / noOfNodes,
 	}
 	client := &http.Client{
 		Transport: tr,
-		Timeout:   10 * time.Second,
+		Timeout:   30 * time.Second,
 	}
 
 	httpSrv := &http.Server{
@@ -69,6 +69,7 @@ func run() error {
 					".gwserver-svc.fcasula.svc.cluster.local:8080",
 			}
 			r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
+			r.RequestURI = ""
 
 			var (
 				err  error
@@ -76,6 +77,7 @@ func run() error {
 			)
 			operation := func() error {
 				resp, err = client.Do(r)
+				defer closeResponse(resp)
 				return err
 			}
 			backoffWithMaxRetry := backoff.WithContext(
@@ -84,7 +86,6 @@ func run() error {
 			err = backoff.RetryNotify(operation, backoffWithMaxRetry, func(err error, t time.Duration) {
 				log.Printf("Failed to POST with error: %v, retrying after %v", err, t)
 			})
-			closeResponse(resp)
 
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)

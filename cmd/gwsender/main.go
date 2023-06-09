@@ -124,6 +124,7 @@ func sendMessages(
 		var resp *http.Response
 		operation := func() error {
 			resp, err = c.Do(req)
+			defer closeResponse(resp)
 			return err
 		}
 		backoffWithMaxRetry := backoff.WithContext(
@@ -135,7 +136,6 @@ func sendMessages(
 		if err != nil {
 			return fmt.Errorf("could not do request: %v", err)
 		}
-		closeResponse(resp)
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("received non-OK status code: %v", resp.StatusCode)
 		}
