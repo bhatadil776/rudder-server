@@ -17,6 +17,8 @@ spec:
         env:
         - name: SERVER_ENDPOINT
           value: "http://gwproxy-svc.fcasula.svc.cluster.local:8080"
+        - name: NO_OF_NODES
+          value: "10"
         - name: NUM_SOURCES
           value: "100"
         - name: USERS_PER_SOURCE

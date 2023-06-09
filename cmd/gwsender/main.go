@@ -22,32 +22,21 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Kill, os.Interrupt)
 	defer cancel()
 
+	mode := os.Getenv("MODE")
 	pulsarURL := os.Getenv("PULSAR_URL")
 	topicName := os.Getenv("TOPIC_NAME")
 	srvEndpoint := os.Getenv("SERVER_ENDPOINT")
-	numSources := os.Getenv("NUM_SOURCES")
-	usersPerSource := os.Getenv("USERS_PER_SOURCE")
-	messagesPerUser := os.Getenv("MESSAGES_PER_USER")
-	mode := os.Getenv("MODE")
+	noOfNodes := mustReadIntEnvVar("NO_OF_NODES")
+	numSources := mustReadIntEnvVar("NUM_SOURCES")
+	usersPerSource := mustReadIntEnvVar("USERS_PER_SOURCE")
+	messagesPerUser := mustReadIntEnvVar("MESSAGES_PER_USER")
 
 	log.Printf(
-		"Starting with configuration: Pulsar URL: %s, Topic: %s, Mode: %q, Srv: %s, "+
-			"Sources: %s, Users: %s, Msgs: %s\n",
-		pulsarURL, topicName, mode, srvEndpoint, numSources, usersPerSource, messagesPerUser,
+		"Starting with configuration: Mode: %q, Pulsar URL: %s, Topic: %s, SrvEndpoint: %s, "+
+			"NoOfNodes: %d, Sources: %d, Users per source: %d, Msgs per user: %d\n",
+		mode, pulsarURL, topicName, srvEndpoint,
+		noOfNodes, numSources, usersPerSource, messagesPerUser,
 	)
-
-	numSourcesInt, err := strconv.Atoi(numSources)
-	if err != nil {
-		log.Fatal("Invalid NUM_SOURCES value:", err)
-	}
-	usersPerSourceInt, err := strconv.Atoi(usersPerSource)
-	if err != nil {
-		log.Fatal("Invalid USERS_PER_SOURCE value:", err)
-	}
-	messagesPerUserInt, err := strconv.Atoi(messagesPerUser)
-	if err != nil {
-		log.Fatal("Invalid MESSAGES_PER_USER value:", err)
-	}
 
 	tr := &http.Transport{
 		DialContext: (&net.Dialer{
@@ -57,8 +46,8 @@ func main() {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 10 * time.Second,
 		ResponseHeaderTimeout: 10 * time.Second,
-		MaxIdleConns:          numSourcesInt,
-		MaxConnsPerHost:       numSourcesInt,
+		MaxIdleConns:          numSources,
+		MaxConnsPerHost:       numSources,
 	}
 	client := &http.Client{
 		Transport: tr,
@@ -69,15 +58,21 @@ func main() {
 	case "ORDER":
 		start := time.Now()
 		var eg errgroup.Group
-		for i := 0; i < numSourcesInt; i++ {
-			writeKey := i
-			for j := 0; j < usersPerSourceInt; j++ {
-				userID := j
-				eg.Go(func() error {
-					return sendMessages(ctx, client, srvEndpoint, writeKey, userID, messagesPerUserInt)
-				})
+		for k := 0; k < noOfNodes; k++ {
+			nodeNumber := k
+			for i := 0; i < numSources; i++ {
+				writeKey := i
+				for j := 0; j < usersPerSource; j++ {
+					userID := j
+					eg.Go(func() error {
+						return sendMessages(ctx, client, srvEndpoint,
+							nodeNumber, writeKey, userID, messagesPerUser,
+						)
+					})
+				}
 			}
 		}
+
 		err := eg.Wait()
 		if err != nil {
 			log.Fatalf("Could not send messages: %v", err)
@@ -85,7 +80,7 @@ func main() {
 
 		log.Printf("Total time: %s", time.Since(start))
 		log.Printf("Message throughput: %f msg/s",
-			float64(numSourcesInt*usersPerSourceInt*messagesPerUserInt)/time.Since(start).Seconds(),
+			float64(numSources*usersPerSource*messagesPerUser)/time.Since(start).Seconds(),
 		)
 		log.Println("Done publishing!")
 	case "VERIFY":
@@ -94,8 +89,16 @@ func main() {
 		}
 
 		// Subscribe and verify messages for all users
-		err := verifyMessages(ctx, pulsarURL, topicName, numSourcesInt, usersPerSourceInt, messagesPerUserInt)
-		if err != nil {
+		var eg errgroup.Group
+		for k := 0; k < noOfNodes; k++ {
+			instanceTopic := topicName + "-" + strconv.Itoa(k)
+			eg.Go(func() error {
+				return verifyMessages(ctx, pulsarURL, instanceTopic,
+					numSources, usersPerSource, messagesPerUser,
+				)
+			})
+		}
+		if err := eg.Wait(); err != nil {
 			log.Printf("Could not verify messages: %v", err)
 		}
 	}
@@ -103,7 +106,7 @@ func main() {
 
 func sendMessages(
 	ctx context.Context, c *http.Client, endpoint string,
-	writeKey, userID, messageCount int,
+	nodeNumber, writeKey, userID, messageCount int,
 ) error {
 	var sent int
 	for i := 1; i <= messageCount; i++ {
@@ -114,6 +117,7 @@ func sendMessages(
 			return fmt.Errorf("failed to create request: %v", err)
 		}
 
+		req.Header.Set("X-RoutingKey", strconv.Itoa(nodeNumber))
 		req.Header.Set("X-WriteKey", strconv.Itoa(writeKey))
 		req.Header.Set("Content-Type", "text/plain")
 
@@ -160,7 +164,7 @@ func verifyMessages(
 
 	consumer, err := client.Subscribe(pulsar.ConsumerOptions{
 		Topic:            topicName,
-		SubscriptionName: "test-client-subscription",
+		SubscriptionName: "gwverifier",
 		Type:             pulsar.KeyShared,
 	})
 	if err != nil {
@@ -242,4 +246,26 @@ func closeResponse(resp *http.Response) {
 		_, _ = io.CopyN(io.Discard, resp.Body, maxBodySlurpSize)
 		_ = resp.Body.Close()
 	}
+}
+
+func readIntEnvVar(name string) (int, bool) {
+	rawValue, exists := os.LookupEnv(name)
+	if !exists {
+		return 0, false
+	}
+
+	value, err := strconv.Atoi(rawValue)
+	if err != nil {
+		return 0, false
+	}
+
+	return value, true
+}
+
+func mustReadIntEnvVar(name string) int {
+	value, exists := readIntEnvVar(name)
+	if !exists {
+		log.Fatalf("Environment variable %s is not set or invalid", name)
+	}
+	return value
 }
