@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gwproxy-deployment
+  labels:
+    app: gwproxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gwproxy
+  template:
+    metadata:
+      labels:
+        app: gwproxy
+    spec:
+      containers:
+      - name: gwproxy
+        image: fracasula/gwproxy:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: NO_OF_NODES
+          value: "10"
+      imagePullSecrets:
+      - name: regcred
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gwproxy-svc
+  labels:
+    app: gwproxy
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: gwproxy
