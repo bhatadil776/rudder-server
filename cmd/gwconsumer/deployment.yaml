@@ -5,7 +5,7 @@ metadata:
   labels:
     app: gwconsumer
 spec:
-  replicas: 10
+  replicas: 1
   selector:
     matchLabels:
       app: gwconsumer
@@ -30,6 +30,8 @@ spec:
         - name: BATCH_MAX_MESSAGES
           value: "1000"
         - name: MAX_CONNECTIONS_PER_BROKER
-          value: "20"
+          value: "10"
+        - name: NO_OF_NODES
+          value: "10"
       imagePullSecrets:
       - name: regcred
