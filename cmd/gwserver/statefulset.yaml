@@ -16,7 +16,7 @@ spec:
         app: gwserver
     spec:
       containers:
-      - name: pulsar-exp
+      - name: gwserver
         image: fracasula/gwserver:latest
         imagePullPolicy: Always
         ports:
