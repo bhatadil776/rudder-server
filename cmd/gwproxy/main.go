@@ -46,7 +46,7 @@ func run() error {
 			proxyURL := &url.URL{
 				Scheme: "http",
 				Host: fmt.Sprintf(
-					"gwpulsar-statefulset-%d.gwpulsar-service.my-namespace.svc.cluster.local",
+					"gwserver-statefulset-%d.gwserver-svc.fcasula.svc.cluster.local",
 					nodeNumber,
 				),
 			}
