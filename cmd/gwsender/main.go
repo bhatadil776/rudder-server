@@ -124,7 +124,7 @@ func sendMessages(
 			backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 10), ctx,
 		)
 		err = backoff.RetryNotify(operation, backoffWithMaxRetry, func(err error, t time.Duration) {
-			// log.Printf("[WARN] Failed to POST with error: %v, retrying after %v", err, t)
+			log.Printf("[WARN] Failed to POST with error: %v, retrying after %v", err, t)
 		})
 		if err != nil {
 			log.Printf("[ERROR] Failed to POST with error: %v", err)
