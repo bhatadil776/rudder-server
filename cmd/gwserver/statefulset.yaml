@@ -1,22 +1,23 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: gwpulsar-deployment
+  name: gwserver-statefulset
   labels:
-    app: gwpulsar
+    app: gwserver
 spec:
-  replicas: 1
+  serviceName: "gwserver-svc"
+  replicas: 10
   selector:
     matchLabels:
-      app: gwpulsar
+      app: gwserver
   template:
     metadata:
       labels:
-        app: gwpulsar
+        app: gwserver
     spec:
       containers:
       - name: pulsar-exp
-        image: fracasula/gwpulsar:latest
+        image: fracasula/gwserver:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -26,22 +27,22 @@ spec:
         - name: TOPIC_NAME
           value: "persistent://public/fcasula/gwpulsar-test"
         - name: CUSTOM_MESSAGE_ROUTER
-          value: "false"
+          value: "true"
         - name: BATCH_MAX_DELAY
           value: "10ms"
         - name: BATCH_MAX_MESSAGES
           value: "1000"
         - name: MAX_CONNECTIONS_PER_BROKER
-          value: "20"
+          value: "10"
       imagePullSecrets:
       - name: regcred
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: gwpulsar-svc
+  name: gwserver-svc
   labels:
-    app: gwpulsar
+    app: gwserver
 spec:
   type: ClusterIP
   ports:
@@ -50,4 +51,4 @@ spec:
     protocol: TCP
     name: http
   selector:
-    app: gwpulsar
+    app: gwserver

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"strconv"
 	"sync"
 	"time"
@@ -16,6 +17,14 @@ import (
 )
 
 func main() {
+	hostname := os.Getenv("HOSTNAME")
+	re := regexp.MustCompile(`^gwserver-statefulset-(\d+)$`)
+	match := re.FindStringSubmatch(hostname)
+	if match == nil {
+		log.Fatalf("The hostname %q does not match the pattern: %v", os.Getenv("HOSTNAME"), re)
+	}
+	instanceNumber, _ := strconv.Atoi(match[1])
+
 	pulsarURL := os.Getenv("PULSAR_URL")
 	topicName := os.Getenv("TOPIC_NAME")
 	batchMaxDelay := os.Getenv("BATCH_MAX_DELAY")
@@ -42,12 +51,14 @@ func main() {
 		log.Fatal("Invalid CUSTOM_MESSAGE_ROUTER value:", err)
 	}
 
-	log.Printf("Starting with configuration: Pulsar URL: %s, Topic: %s, BatchMaxDelay: %s, BatchMaxMessages: %d\n",
-		pulsarURL, topicName, batchMaxDelayDuration, batchMaxMessagesInt,
+	instanceTopic := topicName + "-" + strconv.Itoa(instanceNumber)
+	log.Printf(
+		"Starting with configuration: Pulsar URL: %s, Topic: %s, BatchMaxDelay: %s, BatchMaxMessages: %d\n",
+		pulsarURL, instanceTopic, batchMaxDelayDuration, batchMaxMessagesInt,
 	)
 
 	err = run(
-		pulsarURL, topicName, batchMaxDelayDuration, batchMaxMessagesInt,
+		pulsarURL, instanceTopic, batchMaxDelayDuration, batchMaxMessagesInt,
 		maxConnectionsPerBrokerInt, customMessageRouterBool,
 	)
 	if err != nil {

@@ -5,6 +5,7 @@ DOCKER_REGISTRY := docker.io
 IMAGE_VERSION := $(shell date +%Y%m%d%H%M%S)
 IMAGE_NAME := $(DOCKER_REGISTRY)/$(REGISTRY_USERNAME)/$(IMAGE_NAME)
 TAGGED_IMAGE_NAME := $(IMAGE_NAME):$(IMAGE_VERSION)
+TOPICS := 10
 PARTITIONS := 100
 BROKER := 0
 
@@ -17,7 +18,6 @@ build:
 
 .PHONY: push
 push: build
-	#docker tag $(IMAGE_NAME) $(TAGGED_IMAGE_NAME)
 	docker tag $(IMAGE_NAME) $(IMAGE_NAME):latest
 	docker push $(IMAGE_NAME):latest
 
@@ -31,11 +31,11 @@ run:
 
 .PHONY: deploy
 deploy:
-	kubectl -n $(GWPULSAR_NAMESPACE) apply -f deployment.yaml
+	kubectl -n $(GWPULSAR_NAMESPACE) apply -f statefulset.yaml
 
 .PHONY: undeploy
 undeploy:
-	kubectl -n $(GWPULSAR_NAMESPACE) delete -f deployment.yaml
+	kubectl -n $(GWPULSAR_NAMESPACE) delete -f statefulset.yaml
 
 .PHONY: create-namespace
 create-namespace:
@@ -44,41 +44,44 @@ create-namespace:
 	kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
 		namespaces set-retention public/$(GWPULSAR_NAMESPACE) --size 10G --time 2d
 
-.PHONY: create-topic
-create-topic:
-	kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
-		topics create-partitioned-topic \
-		persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) --partitions $(PARTITIONS) && \
-	kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
-		topics create-subscription \
-		--subscription test-client-subscription \
-		persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME)
+.PHONY: create-topics
+create-topics:
+	for i in $$(seq 0 $$(($(TOPICS) - 1))); do \
+		kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
+			topics create-partitioned-topic \
+			persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME)-$$i --partitions $(PARTITIONS) && \
+		kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
+			topics create-subscription \
+			--subscription gwconsumer \
+			persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME)-$$i; \
+	done
+
 
 .PHONY: list-topics
 list-topics:
 	kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
-		topics list-partitioned-topics public/$(GWPULSAR_NAMESPACE) ;\
-	kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
-		topics list public/$(GWPULSAR_NAMESPACE)
+		topics list-partitioned-topics public/$(GWPULSAR_NAMESPACE)
 
-.PHONY: delete-topic
-delete-topic:
-	kubectl -n $(GWPULSAR_NAMESPACE) delete -f deployment.yaml ;\
-	kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
-    	topics delete-partitioned-topic persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) -f
-#	number=1 ; while [[ $$number -le $(PARTITIONS) ]] ; do \
-#        kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
-#    		topics delete persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME)-partition-$$number -f ;\
-#        ((number = number + 1)) ;\
-#    done ;\
-#	kubectl exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
-#		topics delete persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) -f
+.PHONY: delete-topics
+delete-topics:
+	for i in $$(seq 0 $$(($(TOPICS) - 1))); do \
+		kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
+			topics delete-partitioned-topic persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME)-$$i -f; \
+	done
 
 .PHONY: topic-stats
 topic-stats:
 	kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
-		topics partitioned-stats persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME) \
+		topics partitioned-stats persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME)-0 \
 		--per-partition
+
+.PHONY: topics-stats
+topics-stats:
+	for i in $$(seq 0 $$(($(TOPICS) - 1))); do \
+		kubectl -n pulsar exec -it pulsar-toolset-0 -- /pulsar/bin/pulsar-admin \
+			topics partitioned-stats persistent://public/$(GWPULSAR_NAMESPACE)/$(TOPIC_NAME)-$$i \
+			--per-partition; \
+	done
 
 .PHONY: pulsar-proxy
 pulsar-proxy:

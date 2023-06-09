@@ -1,4 +1,4 @@
-module gwpulsar
+module gwserver
 
 go 1.20
 
