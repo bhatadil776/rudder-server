@@ -2,6 +2,7 @@ package marketobulkupload
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	stdjson "encoding/json"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 	"github.com/rudderlabs/rudder-go-kit/config"
 	"github.com/rudderlabs/rudder-go-kit/logger"
 
+	"github.com/cenkalti/backoff"
 	"github.com/rudderlabs/rudder-go-kit/stats"
 	backendconfig "github.com/rudderlabs/rudder-server/backend-config"
 	"github.com/rudderlabs/rudder-server/jobsdb"
@@ -29,11 +31,28 @@ type MarketoBulkUploader struct {
 	logger            logger.Logger
 }
 
+func NewBingAdsBulkUploader(destination *backendconfig.DestinationT, HTTPTimeout time.Duration) *MarketoBulkUploader {
+	return &MarketoBulkUploader{
+		destName:          "MARKETO_BULK_UPLOAD",
+		timeout:           HTTPTimeout,
+		destinationConfig: destination.DestinationDefinition.Config,
+		TransformUrl:      "http://localhost:dummyport",
+		PollUrl:           "/pollStatus",
+		logger:            logger.NewLogger().Child("batchRouter").Child("AsyncDestinationManager").Child("BingAds").Child("MarketoBulkUploader"),
+	}
+}
+
 func NewManager(destination *backendconfig.DestinationT, HTTPTimeout time.Duration) (*MarketoBulkUploader, error) {
 	marketoBulkUpload := &MarketoBulkUploader{destName: "MARKETO_BULK_UPLOAD", timeout: HTTPTimeout, destinationConfig: destination.DestinationDefinition.Config, PollUrl: "/pollStatus", TransformUrl: config.GetString("DEST_TRANSFORM_URL", "http://localhost:9090")}
 	return marketoBulkUpload, nil
 
 }
+
+type MarketoTransformerCall interface {
+	HTTPCallWithRetryWithTimeout(url string, payload []byte, timeout time.Duration) ([]byte, int)
+}
+
+type MarketoTransformerImplCall struct{}
 
 var (
 	pkgLogger logger.Logger
@@ -43,12 +62,33 @@ func init() {
 	pkgLogger = logger.NewLogger().Child("asyncdestinationmanager").Child("marketobulkupload")
 }
 
+func (m *MarketoTransformerImplCall) HTTPCallWithRetryWithTimeout(url string, payload []byte, timeout time.Duration) ([]byte, int) {
+	var respBody []byte
+	var statusCode int
+	operation := func() error {
+		var fetchError error
+		respBody, statusCode, fetchError = misc.MakeHTTPRequestWithTimeout(url, bytes.NewBuffer(payload), timeout)
+		return fetchError
+	}
+
+	backoffWithMaxRetry := backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 3)
+	err := backoff.RetryNotify(operation, backoffWithMaxRetry, func(err error, t time.Duration) {
+		pkgLogger.Errorf("Failed to make call. Error: %v, retrying after %v", err, t)
+	})
+	if err != nil {
+		pkgLogger.Error("Error sending request to the server", err)
+		return respBody, statusCode
+	}
+	return respBody, statusCode
+}
+
 func (b *MarketoBulkUploader) Poll(pollInput common.AsyncPoll) (common.PollStatusResponse, int) {
 	payload, err := json.Marshal(pollInput)
 	if err != nil {
 		panic("JSON Marshal Failed" + err.Error())
 	}
-	bodyBytes, statusCode := misc.HTTPCallWithRetryWithTimeout(b.TransformUrl+b.PollUrl, payload, b.timeout)
+	m := MarketoTransformerImplCall{}
+	bodyBytes, statusCode := m.HTTPCallWithRetryWithTimeout(b.TransformUrl+b.PollUrl, payload, b.timeout)
 	var asyncResponse common.PollStatusResponse
 	err = json.Unmarshal(bodyBytes, &asyncResponse)
 	if err != nil {
@@ -90,7 +130,8 @@ func (b *MarketoBulkUploader) GetUploadStats(UploadStatsInput common.FetchUpload
 	importId := gjson.GetBytes(parameters, "importId").String()
 	csvHeaders := gjson.GetBytes(parameters, "metadata.csvHeader").String()
 	payload := GenerateFailedPayload(b.destinationConfig, UploadStatsInput.ImportingList, importId, b.destName, csvHeaders)
-	failedBodyBytes, statusCode := misc.HTTPCallWithRetryWithTimeout(transformUrl+failedJobUrl, payload, b.timeout)
+	m := MarketoTransformerImplCall{}
+	failedBodyBytes, statusCode := m.HTTPCallWithRetryWithTimeout(transformUrl+failedJobUrl, payload, b.timeout)
 	if statusCode != 200 {
 		return common.GetUploadStatsResponse{}, statusCode
 	}
@@ -209,7 +250,8 @@ func (b *MarketoBulkUploader) Upload(destination *backendconfig.DestinationT, as
 	startTime := time.Now()
 	payloadSizeStat.Observe(float64(len(payload)))
 	pkgLogger.Debugf("[Async Destination Maanger] File Upload Started for Dest Type %v", destType)
-	responseBody, statusCodeHTTP := misc.HTTPCallWithRetryWithTimeout(url, payload, b.timeout)
+	m := MarketoTransformerImplCall{}
+	responseBody, statusCodeHTTP := m.HTTPCallWithRetryWithTimeout(url, payload, b.timeout)
 	pkgLogger.Debugf("[Async Destination Maanger] File Upload Finished for Dest Type %v", destType)
 	uploadTimeStat.Since(startTime)
 	var bodyBytes []byte
