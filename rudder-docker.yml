@@ -26,7 +26,7 @@ services:
       - JOBS_DB_PASSWORD=password
       - DEST_TRANSFORM_URL=http://d-transformer:9090
       - CONFIG_BACKEND_URL=https://api.rudderstack.com
-      - WORKSPACE_TOKEN=2Rqli7BbuiwLOThE13Z4J6J6jos
+      - WORKSPACE_TOKEN=2Rqli7BbuiwLOThEttttt
       - STATSD_SERVER_URL=metrics-exporter:9125
       # DO NOT REMOVE - Mandatory env for Shopify
       - RSERVER_GATEWAY_WEBHOOK_SOURCE_LIST_FOR_PARSING_PARAMS=Shopify 
